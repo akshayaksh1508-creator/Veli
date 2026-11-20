@@ -3,104 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Veil — D1-T4 Route Control (Go / No-Go)</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      padding: 30px;
-      line-height: 1.5;
-    }
-    .card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 24px;
-      max-width: 760px;
-      margin: 0 auto;
-    }
-    h1 { color: #38bdf8; margin-top: 0; font-size: 1.5rem; }
-    .badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-    .badge-nano { background: #f59e0b20; color: #fbbf24; border: 1px solid #f59e0b40; }
-    .badge-cloud { background: #8b5cf620; color: #a78bfa; border: 1px solid #8b5cf640; }
-    .badge-ok { background: #10b98120; color: #34d399; border: 1px solid #10b98140; }
-    .badge-warn { background: #f43f5e20; color: #f87171; border: 1px solid #f43f5e40; }
-    .btn {
-      padding: 10px 16px;
-      font-weight: 600;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-right: 8px;
-      margin-top: 8px;
-      border: none;
-    }
-    .btn-nano { background: #f59e0b; color: #000; }
-    .btn-cloud { background: #8b5cf6; color: #fff; }
-    .btn:hover { opacity: 0.9; }
-    pre {
-      background: #0b1120;
-      border: 1px solid #334155;
-      border-radius: 6px;
-      padding: 12px;
-      font-size: 0.85rem;
-      white-space: pre-wrap;
-      word-break: break-all;
-      margin-top: 16px;
-      color: #94a3b8;
-      max-height: 320px;
-      overflow-y: auto;
-    }
-    .test-box {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid #334155;
-      border-radius: 6px;
-      padding: 12px;
-      margin: 14px 0;
-    }
-  </style>
+  <title>Veil — Hybrid Privacy-Preserving AI</title>
+  <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
-  <div class="card">
-    <h1>Veil — Task D1-T4 Route Control (Go / No-Go)</h1>
-    <p>Verify that you can strictly control and force on-device-only vs cloud-only inference paths.</p>
+  <div class="app-container">
+    <header>
+      <div class="brand">
+        <h1>Veil</h1>
+        <p>Use powerful cloud AI on documents you'd never paste into a chatbot.</p>
+      </div>
+      <div class="status-bar">
+        <div class="status-chip">
+          <span class="status-dot nano" id="dot-nano"></span>
+          <span id="text-nano">Nano: Ready</span>
+        </div>
+        <div class="status-chip">
+          <span class="status-dot active" id="dot-network"></span>
+          <span id="text-network">Online</span>
+        </div>
+      </div>
+    </header>
 
-    <div style="display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap;">
-      <div>
-        <strong>Local Model: </strong>
-        <span class="badge badge-nano">Gemini Nano (On-Device)</span>
-      </div>
-      <div>
-        <strong>Cloud Model: </strong>
-        <span class="badge badge-cloud">Cloud Gemini</span>
-      </div>
-      <div>
-        <strong>Network: </strong>
-        <span id="network-status" class="badge badge-ok">Online</span>
-      </div>
+    <!-- Sample Document Pickers -->
+    <div class="samples-bar">
+      <span class="samples-label">Load Sample:</span>
+      <button class="sample-btn" data-sample="SAMPLE_1">1. Loan Note (Short, Sensitive)</button>
+      <button class="sample-btn" data-sample="SAMPLE_2">2. Freelance Contract (Long, Sensitive)</button>
+      <button class="sample-btn" data-sample="SAMPLE_3">3. Tech Article (Public, Non-Sensitive)</button>
+      <button class="sample-btn" data-sample="SAMPLE_4">4. Tricky Edge Cases</button>
     </div>
 
-    <div class="test-box">
-      <strong>Task D1-T4 Tests:</strong>
-      <ol style="margin-left: 20px; margin-top: 6px; font-size: 0.9rem; color: #cbd5e1;">
-        <li><strong>Online:</strong> Both calls succeed. Local latency is distinct from cloud round-trip latency.</li>
-        <li><strong>Offline (Turn Wi-Fi off):</strong> Local call succeeds (100% on-device). Cloud call fails with NetworkError.</li>
-        <li><strong>Network tab inspection:</strong> Local-only mode sends 0 network requests.</li>
-      </ol>
+    <!-- Main Two-Column Workspace -->
+    <main class="main-grid">
+      <!-- Left Panel: Input -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Document Input</h2>
+          <span class="char-counter" id="char-counter">0 chars</span>
+        </div>
+        <div class="panel-body">
+          <textarea
+            id="doc-input"
+            class="doc-input"
+            placeholder="Type or paste a contract, financial record, or medical note here..."
+          ></textarea>
 
-      <div style="margin-top: 12px;">
-        <button id="btn-local" class="btn btn-nano">1. Test Local-Only ("Say hello")</button>
-        <button id="btn-cloud" class="btn btn-cloud">2. Test Cloud-Only ("Say hello")</button>
-      </div>
-    </div>
+          <div class="input-footer">
+            <button id="btn-analyze" class="btn-primary">Analyze Document</button>
+          </div>
+        </div>
+      </section>
 
-    <pre id="output-log">Click a button above to test route control...</pre>
+      <!-- Right Panel: Result Area & Routing Inspector -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Analysis & Routing Inspector</h2>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Privacy Engine</span>
+        </div>
+        <div class="panel-body">
+          <!-- Result Area -->
+          <div>
+            <h3 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
+              Analysis Result
+            </h3>
+            <div id="result-box" class="code-box">Awaiting document analysis. Paste text and click "Analyze Document" to begin.</div>
+          </div>
+
+          <!-- Empty Inspector Panel (Scaffold for Day 2) -->
+          <div>
+            <h3 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
+              Routing Inspector Telemetry
+            </h3>
+            <div id="inspector-panel" class="inspector-empty">
+              <p>Inspector is ready. Pipeline execution steps and transmitted payloads will appear here during analysis.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script type="module" src="/src/main.js"></script>

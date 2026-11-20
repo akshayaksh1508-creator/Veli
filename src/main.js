@@ -1,79 +1,160 @@
-import { runOnDevice, runCloud } from './ai.js';
-import { initAppCheck } from './firebase.js';
+import { SAMPLES } from './samples.js';
+import { detectRegex, buildRedaction } from './redact.js';
+import { runOnDevice, checkNanoCapabilities } from './ai.js';
+import { inspector } from './inspector.js';
 
-// Initialize Firebase App Check
-initAppCheck();
+// DOM Elements
+const docInput = document.getElementById('doc-input');
+const charCounter = document.getElementById('char-counter');
+const btnAnalyze = document.getElementById('btn-analyze');
+const resultBox = document.getElementById('result-box');
+const inspectorPanel = document.getElementById('inspector-panel');
+const textNano = document.getElementById('text-nano');
+const dotNano = document.getElementById('dot-nano');
+const textNetwork = document.getElementById('text-network');
+const dotNetwork = document.getElementById('dot-network');
 
-const netStatusEl = document.getElementById('network-status');
-const logEl = document.getElementById('output-log');
-const btnLocal = document.getElementById('btn-local');
-const btnCloud = document.getElementById('btn-cloud');
+// Check on-device status and network status on load
+async function initStatus() {
+  function updateNetwork() {
+    if (!netStatusEl()) return;
+    if (navigator.onLine) {
+      dotNetwork.className = 'status-dot active';
+      textNetwork.textContent = 'Online';
+    } else {
+      dotNetwork.className = 'status-dot';
+      textNetwork.textContent = 'Offline';
+    }
+  }
 
-function updateNetworkStatus() {
-  if (!netStatusEl) return;
-  if (navigator.onLine) {
-    netStatusEl.textContent = 'Online';
-    netStatusEl.className = 'badge badge-ok';
+  function netStatusEl() {
+    return dotNetwork && textNetwork;
+  }
+
+  window.addEventListener('online', updateNetwork);
+  window.addEventListener('offline', updateNetwork);
+  updateNetwork();
+
+  // Inspect Nano capabilities
+  const check = await checkNanoCapabilities();
+  if (check.available) {
+    dotNano.className = 'status-dot nano';
+    textNano.textContent = 'Nano: Ready';
   } else {
-    netStatusEl.textContent = 'Offline (Wi-Fi Disabled)';
-    netStatusEl.className = 'badge badge-warn';
+    dotNano.className = 'status-dot';
+    textNano.textContent = 'Nano: Local Fallback';
   }
 }
 
-window.addEventListener('online', updateNetworkStatus);
-window.addEventListener('offline', updateNetworkStatus);
-updateNetworkStatus();
-
-function log(msg) {
-  if (logEl) {
-    logEl.textContent = `${new Date().toLocaleTimeString()} - ${msg}\n\n` + logEl.textContent;
-  }
-  console.log(msg);
+// Character counter update
+function updateCharCount() {
+  const len = docInput.value.length;
+  charCounter.textContent = `${len.toLocaleString()} chars`;
 }
 
-// 1. Test Local-Only (On-Device Gemini Nano)
-btnLocal?.addEventListener('click', async () => {
-  btnLocal.disabled = true;
-  log('Dispatching prompt to LOCAL-ONLY model ("Say hello")...');
+docInput?.addEventListener('input', updateCharCount);
+
+// Sample document buttons fill the textarea
+document.querySelectorAll('.sample-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.sample;
+    if (SAMPLES[key]) {
+      docInput.value = SAMPLES[key].text;
+      updateCharCount();
+    }
+  });
+});
+
+// Render Inspector steps
+function renderInspector() {
+  if (!inspectorPanel) return;
+
+  if (inspector.steps.length === 0) {
+    inspectorPanel.className = 'inspector-empty';
+    inspectorPanel.innerHTML = '<p>Inspector is ready. Pipeline execution steps will appear here.</p>';
+    return;
+  }
+
+  inspectorPanel.className = '';
+  inspectorPanel.innerHTML = '';
+  const container = document.createElement('div');
+  container.className = 'timeline';
+
+  inspector.steps.forEach(step => {
+    const row = document.createElement('div');
+    row.className = 'timeline-step';
+
+    const whereClass = step.where === 'cloud' ? 'badge-cloud' : step.where === 'on-device' ? 'badge-nano' : 'badge-local';
+
+    row.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="step-badge ${whereClass}">${step.where.toUpperCase()}</span>
+        <span>${step.label}</span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">${step.durationMs} ms</div>
+    `;
+    container.appendChild(row);
+  });
+
+  inspectorPanel.appendChild(container);
+}
+
+// Analyze button handler
+btnAnalyze?.addEventListener('click', async () => {
+  const text = docInput.value.trim();
+  if (!text) {
+    alert('Please enter or select a document to analyze.');
+    return;
+  }
+
+  // Disable button while running (D1-T6 requirement)
+  btnAnalyze.disabled = true;
+  btnAnalyze.textContent = 'Analyzing...';
+  inspector.reset();
+  renderInspector();
+  resultBox.textContent = 'Executing privacy redaction and document analysis...';
+
+  const t0 = performance.now();
 
   try {
-    const isOffline = !navigator.onLine;
-    const { text, ms, backend } = await runOnDevice('Say hello');
+    // 1. Regex Redaction Step
+    const tRegex0 = performance.now();
+    const matches = detectRegex(text);
+    const { redactedText, map } = buildRedaction(text, matches);
+    const regexDur = performance.now() - tRegex0;
 
-    log(
-      `[LOCAL SUCCESS] On-device inference completed!
-Backend: ${backend.toUpperCase()}
-Timing: ${ms} ms
-Response: "${text}"
-Offline verified: ${isOffline ? 'YES (Ran fully with zero network)' : 'Online (Verified local runtime)'}`
-    );
+    inspector.addStep({
+      id: 'step_redact',
+      label: `Pattern Scan & Redaction (${matches.length} matches, ${map.size} tokens)`,
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: regexDur
+    });
+
+    // 2. On-Device Model Step
+    const tNano0 = performance.now();
+    const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
+    const { text: modelAnswer, ms: nanoMs } = await runOnDevice(prompt);
+
+    inspector.addStep({
+      id: 'step_nano',
+      label: 'On-Device Document Analysis (Gemini Nano)',
+      where: 'on-device',
+      leftDevice: false,
+      durationMs: nanoMs
+    });
+
+    resultBox.textContent = modelAnswer;
   } catch (err) {
-    log(`[LOCAL ERROR] Failed: ${err.message}`);
+    resultBox.textContent = `Error during analysis: ${err.message}`;
   } finally {
-    btnLocal.disabled = false;
+    // Re-enable Analyze button
+    btnAnalyze.disabled = false;
+    btnAnalyze.textContent = 'Analyze Document';
+    renderInspector();
   }
 });
 
-// 2. Test Cloud-Only (Cloud Gemini)
-btnCloud?.addEventListener('click', async () => {
-  btnCloud.disabled = true;
-  log('Dispatching prompt to CLOUD-ONLY model ("Say hello")...');
-
-  try {
-    const { text, ms, backend, appCheckVerified } = await runCloud('Say hello');
-
-    log(
-      `[CLOUD SUCCESS] Cloud inference completed!
-Backend: ${backend.toUpperCase()}
-Timing: ${ms} ms
-App Check Attached: ${appCheckVerified ? 'YES' : 'NO'}
-Response: "${text}"`
-    );
-  } catch (err) {
-    log(`[CLOUD REJECTED AS EXPECTED] Error: ${err.message}`);
-  } finally {
-    btnCloud.disabled = false;
-  }
-});
-
-log('System ready. Choose a model path to test forced route control.');
+// Initialize on page load
+initStatus();
+updateCharCount();
