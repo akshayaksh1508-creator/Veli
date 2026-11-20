@@ -3,13 +3,91 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Veil — Hybrid Privacy-Preserving AI</title>
+  <title>Veil — D1-T2 App Check Test</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 30px;
+      line-height: 1.5;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 650px;
+      margin: 0 auto;
+    }
+    h1 { color: #38bdf8; margin-top: 0; font-size: 1.5rem; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: #10b98120;
+      color: #34d399;
+      border: 1px solid #10b98140;
+    }
+    .btn {
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      padding: 10px 16px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-top: 8px;
+    }
+    .btn-danger {
+      background: #f43f5e;
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #334155;
+      color: #f8fafc;
+    }
+    .btn:hover { opacity: 0.9; }
+    pre {
+      background: #0b1120;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 16px;
+      color: #94a3b8;
+    }
+    .status-ok { color: #34d399; font-weight: bold; }
+    .status-err { color: #f87171; font-weight: bold; }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <h1>Veil</h1>
-    <p>Hybrid Privacy-Preserving AI</p>
+  <div class="card">
+    <h1>Veil — Task D1-T2 Verification</h1>
+    <p>Testing Firebase App Check with Debug Token & Protected Cloud Calls.</p>
+
+    <div style="margin: 16px 0;">
+      <strong>App Check Status: </strong>
+      <span id="appcheck-status" class="badge">Initializing...</span>
+    </div>
+
+    <div>
+      <p style="font-size: 0.9rem; color: #94a3b8;">
+        Test both authenticated calls (carrying the App Check token) and unauthenticated calls to prove enforcement:
+      </p>
+      <button id="btn-test-auth" class="btn">1. Test Authenticated Call</button>
+      <button id="btn-test-unauth" class="btn btn-danger">2. Test Without Token (Expect Reject)</button>
+      <button id="btn-toggle-token" class="btn btn-secondary">3. Toggle Debug Token</button>
+    </div>
+
+    <pre id="output-log">Waiting for action...</pre>
   </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
