@@ -19,20 +19,32 @@ const completeBanner = document.getElementById('complete-banner');
 
 // Check on-device status and network status on load
 async function initStatus() {
-  function updateNetwork() {
+  async function checkRealConnectivity() {
     if (!dotNetwork || !textNetwork) return;
-    if (navigator.onLine) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      dotNetwork.className = 'status-dot';
+      textNetwork.textContent = 'Offline';
+      return;
+    }
+    try {
+      await fetch('https://www.google.com/generate_204', {
+        mode: 'no-cors',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(2000)
+      });
       dotNetwork.className = 'status-dot active';
       textNetwork.textContent = 'Online';
-    } else {
+    } catch {
       dotNetwork.className = 'status-dot';
       textNetwork.textContent = 'Offline';
     }
   }
 
-  window.addEventListener('online', updateNetwork);
-  window.addEventListener('offline', updateNetwork);
-  updateNetwork();
+  window.addEventListener('online', checkRealConnectivity);
+  window.addEventListener('offline', checkRealConnectivity);
+  checkRealConnectivity();
+  // Poll network status every 4 seconds to catch Wi-Fi drops despite Windows virtual adapters
+  setInterval(checkRealConnectivity, 4000);
 
   // Inspect Nano capabilities
   const check = await checkNanoCapabilities();
@@ -184,6 +196,15 @@ btnAnalyze?.addEventListener('click', async () => {
       leftDevice: false,
       durationMs: restDur
     });
+
+    // DevTools Privacy Verification Logging
+    console.group('🛡️ [Veil Privacy Engine] Redaction & Inference Inspection');
+    console.log('%c[1. Redacted Text Sent to AI Model]', 'color: #e11d48; font-weight: bold;', '\n' + redactedText);
+    console.log('%c[2. Protected Token Map]', 'color: #2563eb; font-weight: bold;');
+    console.table(Array.from(map.entries()).map(([token, val]) => ({ 'Placeholder Token': token, 'Protected Secret': val })));
+    console.log('%c[3. Raw AI Response with Tokens]', 'color: #d97706; font-weight: bold;', '\n' + modelAnswer);
+    console.log('%c[4. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
+    console.groupEnd();
 
     resultBox.textContent = restoredAnswer;
   } catch (err) {
