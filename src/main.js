@@ -44,7 +44,7 @@ async function verifyCapabilities() {
     statusEl.textContent = `Unavailable: ${check.status}`;
     statusEl.className = 'badge badge-err';
     if (instructionsEl) instructionsEl.style.display = 'block';
-    log(`On-Device AI not active: ${check.error || check.status}. See instructions above.`);
+    log(`On-Device AI not active: ${check.error || check.status}.\nDiagnostics: Browser=${check.details?.userAgent}\nwindow.ai present=${check.details?.hasWindowAi}`);
   }
 }
 
@@ -55,10 +55,12 @@ btnRun?.addEventListener('click', async () => {
 
   try {
     const isOffline = !navigator.onLine;
-    const { text, ms } = await runOnDevice('Reply with the word OK');
+    const { text, ms, backend } = await runOnDevice('Reply with the word OK');
+
+    const backendLabel = backend === 'native-nano' ? '[NATIVE CHROME GEMINI NANO]' : '[DEV SIMULATOR FALLBACK]';
 
     log(
-      `SUCCESS: Model responded!\nOutput: "${text}"\nLatency: ${ms} ms\nOffline verified: ${isOffline ? 'YES (No internet)' : 'NO (Connected to internet)'}`
+      `SUCCESS: Model responded!\nBackend: ${backendLabel}\nOutput: "${text}"\nLatency: ${ms} ms\nOffline verified: ${isOffline ? 'YES (No internet)' : 'NO (Connected to internet)'}`
     );
   } catch (err) {
     log(`ERROR: On-device prompt failed: ${err.message}`);
