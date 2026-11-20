@@ -21,14 +21,24 @@ export async function checkNanoCapabilities() {
   };
 
   // 1. Current Chrome Prompt API: window.ai.languageModel
-  if (window.ai && window.ai.languageModel) {
+  if (typeof window !== 'undefined' && (window.ai?.languageModel || (typeof ai !== 'undefined' && ai?.languageModel))) {
+    const lm = window.ai?.languageModel || ai.languageModel;
     try {
-      const caps = await window.ai.languageModel.capabilities();
-      const status = caps.available; // 'readily' | 'after-download' | 'no'
+      let status = 'readily';
+      let raw = null;
+
+      if (typeof lm.availability === 'function') {
+        status = await lm.availability();
+      } else if (typeof lm.capabilities === 'function') {
+        raw = await lm.capabilities();
+        status = raw.available;
+      }
+
+      const isAvail = status === 'readily' || status === 'after-download';
       return {
-        available: status === 'readily' || status === 'after-download',
+        available: isAvail,
         status: `languageModel: ${status}`,
-        raw: caps,
+        raw,
         details: diagnostics
       };
     } catch (err) {
@@ -84,11 +94,12 @@ export async function isOnDeviceAvailable() {
 export async function runOnDevice(prompt) {
   const start = performance.now();
 
-  // Try window.ai.languageModel
-  if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
+  // Try window.ai.languageModel or ai.languageModel
+  const lm = typeof window !== 'undefined' ? (window.ai?.languageModel || (typeof ai !== 'undefined' && ai?.languageModel)) : null;
+  if (lm) {
     try {
       if (!activeNanoSession) {
-        activeNanoSession = await window.ai.languageModel.create({
+        activeNanoSession = await lm.create({
           systemPrompt: 'You are an on-device AI assistant running locally in Google Chrome.'
         });
       }
