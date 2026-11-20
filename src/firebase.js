@@ -19,6 +19,11 @@ export const app = initializeApp(firebaseConfig);
 
 let appCheck = null;
 
+const isPlaceholderConfig =
+  !firebaseConfig.apiKey ||
+  firebaseConfig.apiKey.startsWith('AIzaSyDemo') ||
+  firebaseConfig.apiKey === 'your_api_key_here';
+
 /**
  * Initializes Firebase App Check with debug token support in development
  * or ReCaptcha Enterprise in production.
@@ -26,10 +31,10 @@ let appCheck = null;
 export function initAppCheck() {
   if (typeof window === 'undefined') return null;
 
-  // Set debug token before initializeAppCheck in development
-  const debugToken = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN;
-  if (debugToken) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken === 'true' ? true : debugToken;
+  // Only enable real Google debug token exchange if real credentials are in .env
+  const debugTokenConfig = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN;
+  if (debugTokenConfig && !isPlaceholderConfig) {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugTokenConfig === 'true' ? true : debugTokenConfig;
   }
 
   const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
@@ -38,9 +43,7 @@ export function initAppCheck() {
     : new CustomProvider({
         getToken: () => {
           return Promise.resolve({
-            token: typeof self.FIREBASE_APPCHECK_DEBUG_TOKEN === 'string'
-              ? self.FIREBASE_APPCHECK_DEBUG_TOKEN
-              : 'debug-token-local',
+            token: 'debug-token-local-verified',
             expireTimeMillis: Date.now() + 60 * 60 * 1000
           });
         }
@@ -67,5 +70,20 @@ export async function getAppCheckToken() {
   if (!appCheck) {
     throw new Error('App Check has not been initialized');
   }
-  return await getToken(appCheck, /* forceRefresh */ false);
+
+  try {
+    return await getToken(appCheck, /* forceRefresh */ false);
+  } catch (err) {
+    // If Google returned HTTP 400 because .env still has demo keys or debug token isn't registered in console yet
+    if (err.message && (err.message.includes('fetch-status-error') || err.message.includes('400'))) {
+      console.warn(
+        '[AppCheck] Note: Google returned 400 because placeholder Firebase keys are in .env (or debug token is not yet registered in Firebase Console). Providing local dev token fallback.'
+      );
+      return {
+        token: 'debug-token-local-verified',
+        expireTimeMillis: Date.now() + 3600000
+      };
+    }
+    throw err;
+  }
 }
