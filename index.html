@@ -8,19 +8,21 @@
 </head>
 <body>
   <div class="app-container">
+    <!-- Navbar / Header -->
     <header>
       <div class="brand">
         <h1>Veil</h1>
+        <span class="brand-divider">|</span>
         <p>Use powerful cloud AI on documents you'd never paste into a chatbot.</p>
       </div>
       <div class="status-bar">
         <div class="status-chip">
-          <span class="status-dot nano" id="dot-nano"></span>
-          <span id="text-nano">Nano: Ready</span>
-        </div>
-        <div class="status-chip">
           <span class="status-dot active" id="dot-network"></span>
           <span id="text-network">Online</span>
+        </div>
+        <div class="status-chip">
+          <span class="status-dot nano" id="dot-nano"></span>
+          <span id="text-nano">Nano: Ready</span>
         </div>
       </div>
     </header>
@@ -28,7 +30,7 @@
     <!-- Load Sample Bar -->
     <div class="samples-bar">
       <span class="samples-label">LOAD SAMPLE:</span>
-      <button class="sample-btn" data-sample="SAMPLE_1">1. Loan Note (Short, Sensitive)</button>
+      <button class="sample-btn active" data-sample="SAMPLE_1">1. Loan Note (Short, Sensitive)</button>
       <button class="sample-btn" data-sample="SAMPLE_2">2. Freelance Contract (Long, Sensitive)</button>
       <button class="sample-btn" data-sample="SAMPLE_3">3. Tech Article (Public, Non-Sensitive)</button>
       <button class="sample-btn" data-sample="SAMPLE_4">4. Tricky Edge Cases</button>
@@ -39,9 +41,20 @@
       <!-- Left Panel: Document Input -->
       <section class="panel">
         <div class="panel-header">
-          <h2><span class="header-bar"></span>Document Input</h2>
+          <h2>
+            <span class="icon-wrap">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0b57d0" stroke-width="2.2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </span>
+            Document Input
+          </h2>
           <span class="char-counter" id="char-counter">0 chars</span>
         </div>
+
         <div class="panel-body">
           <textarea
             id="doc-input"
@@ -49,8 +62,25 @@
             placeholder="Type or paste a contract, financial record, or medical note here..."
           ></textarea>
 
+          <!-- Context Alert Callout -->
+          <div id="input-callout" class="callout-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span id="callout-text">Payments shall be made via NEFT/RTGS to Contractor's designated bank account:</span>
+          </div>
+
           <div class="input-footer">
-            <button id="btn-analyze" class="btn-primary">Analyze Document</button>
+            <button id="btn-analyze" class="btn-primary">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+              <span>Analyze Document &rarr;</span>
+            </button>
           </div>
         </div>
       </section>
@@ -58,21 +88,67 @@
       <!-- Right Panel: Analysis & Routing Inspector -->
       <section class="panel">
         <div class="panel-header">
-          <h2><span class="header-bar"></span>Analysis & Routing Inspector</h2>
-          <span class="header-meta">Privacy Engine</span>
+          <h2>
+            <span class="icon-wrap">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0b57d0" stroke-width="2.2">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+            </span>
+            Analysis & Routing Inspector
+          </h2>
+          <span class="badge-privacy">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            Privacy Engine
+          </span>
         </div>
+
         <div class="panel-body">
-          <!-- Result Area -->
-          <div class="section-group">
-            <div class="section-title">ANALYSIS RESULT</div>
-            <div id="result-box" class="code-box">Awaiting document analysis. Paste text and click "Analyze Document" to begin.</div>
+          <!-- 1. Analysis Result Box -->
+          <div class="result-card">
+            <div class="result-card-header">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="#0b57d0">
+                <circle cx="12" cy="12" r="10" fill="#0b57d0"/>
+                <path d="m9 12 2 2 4-4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              </svg>
+              <h3>Analysis Result</h3>
+            </div>
+            <div id="result-box" class="code-box">
+              Awaiting document analysis. Paste text and click "Analyze Document &rarr;" to begin.
+            </div>
           </div>
 
-          <!-- Routing Inspector Telemetry -->
-          <div class="section-group">
-            <div class="section-title">ROUTING INSPECTOR TELEMETRY</div>
+          <!-- 2. Routing Inspector Telemetry Section -->
+          <div class="telemetry-section">
+            <div class="telemetry-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0b57d0" stroke-width="2.2">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+              <h3>Routing Inspector Telemetry</h3>
+            </div>
             <div id="inspector-panel" class="inspector-empty">
               <p>Inspector is ready. Pipeline execution steps will appear here.</p>
+            </div>
+          </div>
+
+          <!-- 3. Analysis Complete Banner -->
+          <div id="complete-banner" class="complete-banner">
+            <div class="complete-icon">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="#0b57d0">
+                <circle cx="12" cy="12" r="11" fill="#0b57d0"/>
+                <path d="m8.5 12 2.5 2.5 5-5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+              </svg>
+            </div>
+            <div class="complete-content">
+              <h4>Analysis Complete</h4>
+              <p>Your document has been successfully analyzed.</p>
             </div>
           </div>
         </div>
