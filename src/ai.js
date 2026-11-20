@@ -100,7 +100,13 @@ export async function runOnDevice(prompt) {
   if (LMConstructor) {
     try {
       if (!activeNanoSession) {
-        activeNanoSession = await LMConstructor.create();
+        try {
+          activeNanoSession = await LMConstructor.create({
+            expectedOutputs: [{ type: 'text', languages: ['en'] }]
+          });
+        } catch {
+          activeNanoSession = await LMConstructor.create();
+        }
       }
       const response = await activeNanoSession.prompt(prompt);
       const ms = Math.round(performance.now() - start);
