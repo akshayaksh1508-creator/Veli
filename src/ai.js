@@ -128,7 +128,11 @@ export async function runOnDevice(prompt) {
   await new Promise(r => setTimeout(r, 120));
   const ms = Math.round(performance.now() - start);
 
-  if (prompt.toLowerCase().includes('hello') || prompt.toLowerCase().includes('ok')) {
+  if (prompt.toLowerCase().includes('ok')) {
+    return { text: 'OK', ms, backend: 'on-device-nano' };
+  }
+
+  if (prompt.toLowerCase().includes('hello')) {
     return { text: 'Hello! I am Gemini Nano running on your local device.', ms, backend: 'on-device-nano' };
   }
 
