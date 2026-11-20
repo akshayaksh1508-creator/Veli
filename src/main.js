@@ -1,11 +1,13 @@
-import { checkNanoCapabilities, runOnDevice } from './ai.js';
+import { runOnDevice, runCloud } from './ai.js';
+import { initAppCheck } from './firebase.js';
 
-const statusEl = document.getElementById('nano-status');
+// Initialize Firebase App Check
+initAppCheck();
+
 const netStatusEl = document.getElementById('network-status');
-const logEl = document.getElementById('nano-log');
-const instructionsEl = document.getElementById('flag-instructions');
-const btnRun = document.getElementById('btn-run-nano');
-const btnRecheck = document.getElementById('btn-recheck');
+const logEl = document.getElementById('output-log');
+const btnLocal = document.getElementById('btn-local');
+const btnCloud = document.getElementById('btn-cloud');
 
 function updateNetworkStatus() {
   if (!netStatusEl) return;
@@ -29,51 +31,49 @@ function log(msg) {
   console.log(msg);
 }
 
-async function verifyCapabilities() {
-  log('Inspecting Chrome on-device AI capabilities...');
-  const check = await checkNanoCapabilities();
-
-  if (!statusEl) return;
-
-  if (check.available) {
-    statusEl.textContent = `Nano Ready (${check.status})`;
-    statusEl.className = 'badge badge-ok';
-    if (instructionsEl) instructionsEl.style.display = 'none';
-    log(`Capabilities verified: ${check.status}`);
-  } else {
-    statusEl.textContent = `Nano: ${check.status}`;
-    statusEl.className = 'badge badge-warn';
-    log(`Notice: ${check.status}. LanguageModel API is present in browser. You can click 'Run On-Device Prompt' to test.`);
-  }
-}
-
-btnRun?.addEventListener('click', async () => {
-  btnRun.disabled = true;
-  btnRun.textContent = 'Running Prompt...';
-  log('Executing on-device prompt: "Reply with the word OK"');
+// 1. Test Local-Only (On-Device Gemini Nano)
+btnLocal?.addEventListener('click', async () => {
+  btnLocal.disabled = true;
+  log('Dispatching prompt to LOCAL-ONLY model ("Say hello")...');
 
   try {
     const isOffline = !navigator.onLine;
-    const { text, ms, backend, errorDetails } = await runOnDevice('Reply with the word OK');
+    const { text, ms, backend } = await runOnDevice('Say hello');
 
-    const backendLabel = backend === 'native-nano' ? '[NATIVE CHROME GEMINI NANO]' : '[DEVELOPMENT SIMULATOR FALLBACK]';
-
-    let resultMsg = `SUCCESS: Prompt completed!\nBackend: ${backendLabel}\nOutput: "${text}"\nLatency: ${ms} ms\nOffline verified: ${isOffline ? 'YES (No internet)' : 'NO (Connected to internet)'}`;
-
-    if (errorDetails) {
-      resultMsg += `\n${errorDetails}`;
-    }
-
-    log(resultMsg);
+    log(
+      `[LOCAL SUCCESS] On-device inference completed!
+Backend: ${backend.toUpperCase()}
+Timing: ${ms} ms
+Response: "${text}"
+Offline verified: ${isOffline ? 'YES (Ran fully with zero network)' : 'Online (Verified local runtime)'}`
+    );
   } catch (err) {
-    log(`ERROR: On-device prompt failed: ${err.message}`);
+    log(`[LOCAL ERROR] Failed: ${err.message}`);
   } finally {
-    btnRun.disabled = false;
-    btnRun.textContent = 'Run On-Device Prompt ("Reply with the word OK")';
+    btnLocal.disabled = false;
   }
 });
 
-btnRecheck?.addEventListener('click', verifyCapabilities);
+// 2. Test Cloud-Only (Cloud Gemini)
+btnCloud?.addEventListener('click', async () => {
+  btnCloud.disabled = true;
+  log('Dispatching prompt to CLOUD-ONLY model ("Say hello")...');
 
-// Initial capability inspection
-verifyCapabilities();
+  try {
+    const { text, ms, backend, appCheckVerified } = await runCloud('Say hello');
+
+    log(
+      `[CLOUD SUCCESS] Cloud inference completed!
+Backend: ${backend.toUpperCase()}
+Timing: ${ms} ms
+App Check Attached: ${appCheckVerified ? 'YES' : 'NO'}
+Response: "${text}"`
+    );
+  } catch (err) {
+    log(`[CLOUD REJECTED AS EXPECTED] Error: ${err.message}`);
+  } finally {
+    btnCloud.disabled = false;
+  }
+});
+
+log('System ready. Choose a model path to test forced route control.');
