@@ -1,56 +1,26 @@
-import { app, initAppCheck, getAppCheckToken } from './firebase.js';
+import { checkNanoCapabilities, runOnDevice } from './ai.js';
 
-console.log('Firebase App initialized:', app.name);
+const statusEl = document.getElementById('nano-status');
+const netStatusEl = document.getElementById('network-status');
+const logEl = document.getElementById('nano-log');
+const instructionsEl = document.getElementById('flag-instructions');
+const btnRun = document.getElementById('btn-run-nano');
+const btnRecheck = document.getElementById('btn-recheck');
 
-const statusEl = document.getElementById('appcheck-status');
-const logEl = document.getElementById('output-log');
-const btnAuth = document.getElementById('btn-test-auth');
-const btnUnauth = document.getElementById('btn-test-unauth');
-const btnToggle = document.getElementById('btn-toggle-token');
-
-let isTokenEnabled = true;
-let currentToken = null;
-
-// Mock protected cloud endpoint (simulating Firebase AI Logic backend with App Check enforcement)
-function mockProtectedCloudEndpoint(headers) {
-  const token = headers['X-Firebase-AppCheck'];
-  if (!token || token === 'DISABLED') {
-    return {
-      status: 401,
-      ok: false,
-      message: 'HTTP 401 Unauthorized: Request rejected because App Check token is missing or invalid.'
-    };
+function updateNetworkStatus() {
+  if (!netStatusEl) return;
+  if (navigator.onLine) {
+    netStatusEl.textContent = 'Online';
+    netStatusEl.className = 'badge badge-ok';
+  } else {
+    netStatusEl.textContent = 'Offline (Wi-Fi Disabled)';
+    netStatusEl.className = 'badge badge-warn';
   }
-  return {
-    status: 200,
-    ok: true,
-    message: 'HTTP 200 OK: App Check token verified successfully! Cloud call authorized.'
-  };
 }
 
-// Initialize App Check
-try {
-  initAppCheck();
-  getAppCheckToken()
-    .then(({ token }) => {
-      currentToken = token;
-      if (statusEl) {
-        statusEl.textContent = 'Active (Debug Token Ready)';
-        statusEl.className = 'badge';
-      }
-      log(`[AppCheck] Successfully initialized. Debug token acquired:\n${token}`);
-    })
-    .catch(err => {
-      if (statusEl) {
-        statusEl.textContent = 'Error';
-        statusEl.style.background = '#f43f5e20';
-        statusEl.style.color = '#f87171';
-      }
-      log(`[AppCheck Error] ${err.message}`);
-    });
-} catch (e) {
-  log(`[Error] ${e.message}`);
-}
+window.addEventListener('online', updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+updateNetworkStatus();
 
 function log(msg) {
   if (logEl) {
@@ -59,47 +29,46 @@ function log(msg) {
   console.log(msg);
 }
 
-// Button 1: Test Authenticated Call
-btnAuth?.addEventListener('click', async () => {
-  log('Sending authenticated call with App Check token...');
-  try {
-    const { token } = isTokenEnabled && currentToken ? { token: currentToken } : await getAppCheckToken();
-    const res = mockProtectedCloudEndpoint({ 'X-Firebase-AppCheck': token });
-    if (res.ok) {
-      log(`SUCCESS: ${res.message}\nToken used: ${token.slice(0, 12)}...`);
-    } else {
-      log(`REJECTED: ${res.message}`);
-    }
-  } catch (err) {
-    log(`ERROR: Failed to acquire token: ${err.message}`);
-  }
-});
+async function verifyCapabilities() {
+  log('Inspecting Chrome on-device AI capabilities...');
+  const check = await checkNanoCapabilities();
 
-// Button 2: Test Unauthenticated Call (Token stripped)
-btnUnauth?.addEventListener('click', () => {
-  log('Sending unauthenticated call (No X-Firebase-AppCheck header)...');
-  const res = mockProtectedCloudEndpoint({});
-  log(`RESULT: ${res.message} (Expected 401 rejection)`);
-});
+  if (!statusEl) return;
 
-// Button 3: Toggle Debug Token
-btnToggle?.addEventListener('click', () => {
-  isTokenEnabled = !isTokenEnabled;
-  if (!isTokenEnabled) {
-    currentToken = 'DISABLED';
-    if (statusEl) {
-      statusEl.textContent = 'Token Disabled (Simulated)';
-      statusEl.style.background = '#f43f5e20';
-      statusEl.style.color = '#f87171';
-    }
-    log('Debug token has been temporarily removed/disabled. Authenticated calls should now fail.');
+  if (check.available) {
+    statusEl.textContent = `Nano Ready (${check.status})`;
+    statusEl.className = 'badge badge-ok';
+    if (instructionsEl) instructionsEl.style.display = 'none';
+    log(`Capabilities verified: ${check.status}`);
   } else {
-    currentToken = 'debug-token-local';
-    if (statusEl) {
-      statusEl.textContent = 'Active (Debug Token Ready)';
-      statusEl.style.background = '#10b98120';
-      statusEl.style.color = '#34d399';
-    }
-    log('Debug token restored.');
+    statusEl.textContent = `Unavailable: ${check.status}`;
+    statusEl.className = 'badge badge-err';
+    if (instructionsEl) instructionsEl.style.display = 'block';
+    log(`On-Device AI not active: ${check.error || check.status}. See instructions above.`);
+  }
+}
+
+btnRun?.addEventListener('click', async () => {
+  btnRun.disabled = true;
+  btnRun.textContent = 'Running Prompt...';
+  log('Executing on-device prompt: "Reply with the word OK"');
+
+  try {
+    const isOffline = !navigator.onLine;
+    const { text, ms } = await runOnDevice('Reply with the word OK');
+
+    log(
+      `SUCCESS: Model responded!\nOutput: "${text}"\nLatency: ${ms} ms\nOffline verified: ${isOffline ? 'YES (No internet)' : 'NO (Connected to internet)'}`
+    );
+  } catch (err) {
+    log(`ERROR: On-device prompt failed: ${err.message}`);
+  } finally {
+    btnRun.disabled = false;
+    btnRun.textContent = 'Run On-Device Prompt ("Reply with the word OK")';
   }
 });
+
+btnRecheck?.addEventListener('click', verifyCapabilities);
+
+// Initial capability inspection
+verifyCapabilities();
