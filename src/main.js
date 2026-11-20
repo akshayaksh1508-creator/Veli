@@ -196,12 +196,9 @@ btnAnalyze?.addEventListener('click', async () => {
   }
 });
 
-// Initialize on page load: select Sample 1 by default
+// Initialize on page load
 initStatus();
-if (SAMPLES.SAMPLE_1 && docInput) {
-  docInput.value = SAMPLES.SAMPLE_1.text;
-  updateCharCount();
-  if (calloutText) {
-    calloutText.textContent = 'Rahul Mehta at 98450 12345 will confirm. Email him at rahul.mehta@example.com.';
-  }
+updateCharCount();
+if (calloutText) {
+  calloutText.textContent = 'Paste any document containing sensitive personal, financial, or contract data to analyze securely.';
 }
