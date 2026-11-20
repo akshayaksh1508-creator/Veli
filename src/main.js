@@ -44,7 +44,7 @@ async function verifyCapabilities() {
     statusEl.textContent = `Unavailable: ${check.status}`;
     statusEl.className = 'badge badge-err';
     if (instructionsEl) instructionsEl.style.display = 'block';
-    log(`On-Device AI not active: ${check.error || check.status}.\nDiagnostics: Browser=${check.details?.userAgent}\nwindow.ai present=${check.details?.hasWindowAi}`);
+    log(`On-Device AI not active: ${check.error || check.status}.\nDiagnostics: Browser=${check.details?.userAgent}\nLanguageModel=${check.details?.hasGlobalLanguageModel}\nwindow.ai=${check.details?.hasWindowAi}`);
   }
 }
 

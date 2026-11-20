@@ -1,5 +1,6 @@
 /**
- * Veil AI Interface — On-Device Gemini Nano (Chrome Built-in Prompt API)
+ * Veil AI Interface — On-Device Gemini Nano
+ * Supports modern W3C LanguageModel standard (Chrome modern), window.ai, and development fallback.
  */
 
 let activeNanoSession = null;
@@ -15,30 +16,30 @@ export async function checkNanoCapabilities() {
 
   const diagnostics = {
     userAgent: navigator.userAgent,
+    hasGlobalLanguageModel: typeof window.LanguageModel !== 'undefined' || typeof LanguageModel !== 'undefined',
     hasWindowAi: typeof window.ai !== 'undefined',
-    aiKeys: window.ai ? Object.keys(window.ai) : [],
     hasWindowModel: typeof window.model !== 'undefined',
   };
 
-  // 1. Current Chrome Prompt API: window.ai.languageModel
-  if (typeof window !== 'undefined' && (window.ai?.languageModel || (typeof ai !== 'undefined' && ai?.languageModel))) {
-    const lm = window.ai?.languageModel || ai.languageModel;
-    try {
-      let status = 'readily';
-      let raw = null;
+  // 1. Modern W3C Standard Prompt API: LanguageModel global constructor
+  const LMConstructor = typeof window.LanguageModel !== 'undefined'
+    ? window.LanguageModel
+    : (typeof LanguageModel !== 'undefined' ? LanguageModel : null);
 
-      if (typeof lm.availability === 'function') {
-        status = await lm.availability();
-      } else if (typeof lm.capabilities === 'function') {
-        raw = await lm.capabilities();
-        status = raw.available;
+  if (LMConstructor) {
+    try {
+      let status = 'available';
+      if (typeof LMConstructor.availability === 'function') {
+        status = await LMConstructor.availability();
+      } else if (typeof LMConstructor.capabilities === 'function') {
+        const caps = await LMConstructor.capabilities();
+        status = caps.available;
       }
 
-      const isAvail = status === 'readily' || status === 'after-download';
+      const isAvail = status !== 'unavailable' && status !== 'no';
       return {
         available: isAvail,
-        status: `languageModel: ${status}`,
-        raw,
+        status: `LanguageModel: ${status}`,
         details: diagnostics
       };
     } catch (err) {
@@ -46,15 +47,36 @@ export async function checkNanoCapabilities() {
     }
   }
 
-  // 2. Early Canary iteration: window.ai.assistant
+  // 2. Chrome Preview iteration: window.ai.languageModel
+  if (window.ai && window.ai.languageModel) {
+    try {
+      let status = 'readily';
+      if (typeof window.ai.languageModel.availability === 'function') {
+        status = await window.ai.languageModel.availability();
+      } else if (typeof window.ai.languageModel.capabilities === 'function') {
+        const caps = await window.ai.languageModel.capabilities();
+        status = caps.available;
+      }
+
+      const isAvail = status === 'readily' || status === 'after-download';
+      return {
+        available: isAvail,
+        status: `ai.languageModel: ${status}`,
+        details: diagnostics
+      };
+    } catch (err) {
+      return { available: false, status: 'error', error: err.message, details: diagnostics };
+    }
+  }
+
+  // 3. Early Canary iteration: window.ai.assistant
   if (window.ai && window.ai.assistant) {
     try {
       const caps = await window.ai.assistant.capabilities();
       const status = caps.available;
       return {
         available: status === 'readily' || status === 'after-download',
-        status: `assistant: ${status}`,
-        raw: caps,
+        status: `ai.assistant: ${status}`,
         details: diagnostics
       };
     } catch (err) {
@@ -62,7 +84,7 @@ export async function checkNanoCapabilities() {
     }
   }
 
-  // 3. Alternate iteration: window.model
+  // 4. Alternate iteration: window.model
   if (window.model && typeof window.model.prompt === 'function') {
     return { available: true, status: 'readily (window.model)', details: diagnostics };
   }
@@ -70,7 +92,7 @@ export async function checkNanoCapabilities() {
   return {
     available: false,
     status: 'unsupported',
-    error: 'window.ai is not exposed by this browser session.',
+    error: 'Neither LanguageModel nor window.ai is exposed in this browser session.',
     details: diagnostics
   };
 }
@@ -94,12 +116,31 @@ export async function isOnDeviceAvailable() {
 export async function runOnDevice(prompt) {
   const start = performance.now();
 
-  // Try window.ai.languageModel or ai.languageModel
-  const lm = typeof window !== 'undefined' ? (window.ai?.languageModel || (typeof ai !== 'undefined' && ai?.languageModel)) : null;
-  if (lm) {
+  // Try 1: Modern LanguageModel API
+  const LMConstructor = typeof window !== 'undefined' && typeof window.LanguageModel !== 'undefined'
+    ? window.LanguageModel
+    : (typeof LanguageModel !== 'undefined' ? LanguageModel : null);
+
+  if (LMConstructor) {
     try {
       if (!activeNanoSession) {
-        activeNanoSession = await lm.create({
+        activeNanoSession = await LMConstructor.create({
+          initialPrompts: [{ role: 'system', content: 'You are an on-device AI assistant running locally in Google Chrome.' }]
+        });
+      }
+      const response = await activeNanoSession.prompt(prompt);
+      const ms = Math.round(performance.now() - start);
+      return { text: response.trim(), ms, backend: 'native-nano' };
+    } catch (err) {
+      console.warn('[AI:OnDevice] Native LanguageModel prompt failed:', err);
+    }
+  }
+
+  // Try 2: window.ai.languageModel
+  if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
+    try {
+      if (!activeNanoSession) {
+        activeNanoSession = await window.ai.languageModel.create({
           systemPrompt: 'You are an on-device AI assistant running locally in Google Chrome.'
         });
       }
@@ -111,21 +152,7 @@ export async function runOnDevice(prompt) {
     }
   }
 
-  // Try window.ai.assistant
-  if (typeof window !== 'undefined' && window.ai && window.ai.assistant) {
-    try {
-      if (!activeNanoSession) {
-        activeNanoSession = await window.ai.assistant.create();
-      }
-      const response = await activeNanoSession.prompt(prompt);
-      const ms = Math.round(performance.now() - start);
-      return { text: response.trim(), ms, backend: 'native-nano' };
-    } catch (err) {
-      console.warn('[AI:OnDevice] Native assistant failed:', err);
-    }
-  }
-
-  // Fallback simulator for development when Chrome flags are not yet enabled
+  // Fallback simulator for development when Chrome flags or APIs are not yet enabled
   await new Promise(r => setTimeout(r, 180));
   const ms = Math.round(performance.now() - start);
 
