@@ -25,9 +25,9 @@
       </div>
     </header>
 
-    <!-- Sample Document Pickers -->
+    <!-- Load Sample Bar -->
     <div class="samples-bar">
-      <span class="samples-label">Load Sample:</span>
+      <span class="samples-label">LOAD SAMPLE:</span>
       <button class="sample-btn" data-sample="SAMPLE_1">1. Loan Note (Short, Sensitive)</button>
       <button class="sample-btn" data-sample="SAMPLE_2">2. Freelance Contract (Long, Sensitive)</button>
       <button class="sample-btn" data-sample="SAMPLE_3">3. Tech Article (Public, Non-Sensitive)</button>
@@ -36,10 +36,10 @@
 
     <!-- Main Two-Column Workspace -->
     <main class="main-grid">
-      <!-- Left Panel: Input -->
+      <!-- Left Panel: Document Input -->
       <section class="panel">
         <div class="panel-header">
-          <h2>Document Input</h2>
+          <h2><span class="header-bar"></span>Document Input</h2>
           <span class="char-counter" id="char-counter">0 chars</span>
         </div>
         <div class="panel-body">
@@ -55,28 +55,24 @@
         </div>
       </section>
 
-      <!-- Right Panel: Result Area & Routing Inspector -->
+      <!-- Right Panel: Analysis & Routing Inspector -->
       <section class="panel">
         <div class="panel-header">
-          <h2>Analysis & Routing Inspector</h2>
-          <span style="font-size: 0.8rem; color: var(--text-muted);">Privacy Engine</span>
+          <h2><span class="header-bar"></span>Analysis & Routing Inspector</h2>
+          <span class="header-meta">Privacy Engine</span>
         </div>
         <div class="panel-body">
           <!-- Result Area -->
-          <div>
-            <h3 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
-              Analysis Result
-            </h3>
+          <div class="section-group">
+            <div class="section-title">ANALYSIS RESULT</div>
             <div id="result-box" class="code-box">Awaiting document analysis. Paste text and click "Analyze Document" to begin.</div>
           </div>
 
-          <!-- Empty Inspector Panel (Scaffold for Day 2) -->
-          <div>
-            <h3 style="font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">
-              Routing Inspector Telemetry
-            </h3>
+          <!-- Routing Inspector Telemetry -->
+          <div class="section-group">
+            <div class="section-title">ROUTING INSPECTOR TELEMETRY</div>
             <div id="inspector-panel" class="inspector-empty">
-              <p>Inspector is ready. Pipeline execution steps and transmitted payloads will appear here during analysis.</p>
+              <p>Inspector is ready. Pipeline execution steps will appear here.</p>
             </div>
           </div>
         </div>
