@@ -1,5 +1,6 @@
 import { SAMPLES } from './samples.js';
 import { detectRegex, buildRedaction } from './redact.js';
+import { restore } from './restore.js';
 import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
 
@@ -144,7 +145,20 @@ btnAnalyze?.addEventListener('click', async () => {
       durationMs: nanoMs
     });
 
-    resultBox.textContent = modelAnswer;
+    // 3. Local Restoration Step (Swapping placeholders back to real values in browser memory)
+    const tRest0 = performance.now();
+    const restoredAnswer = restore(modelAnswer, map);
+    const restDur = performance.now() - tRest0;
+
+    inspector.addStep({
+      id: 'step_restore',
+      label: `Local Restoration (${map.size} placeholders restored to real values)`,
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: restDur
+    });
+
+    resultBox.textContent = restoredAnswer;
   } catch (err) {
     resultBox.textContent = `Error during analysis: ${err.message}`;
   } finally {
