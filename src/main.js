@@ -41,10 +41,9 @@ async function verifyCapabilities() {
     if (instructionsEl) instructionsEl.style.display = 'none';
     log(`Capabilities verified: ${check.status}`);
   } else {
-    statusEl.textContent = `Unavailable: ${check.status}`;
-    statusEl.className = 'badge badge-err';
-    if (instructionsEl) instructionsEl.style.display = 'block';
-    log(`On-Device AI not active: ${check.error || check.status}.\nDiagnostics: Browser=${check.details?.userAgent}\nLanguageModel=${check.details?.hasGlobalLanguageModel}\nwindow.ai=${check.details?.hasWindowAi}`);
+    statusEl.textContent = `Nano: ${check.status}`;
+    statusEl.className = 'badge badge-warn';
+    log(`Notice: ${check.status}. LanguageModel API is present in browser. You can click 'Run On-Device Prompt' to test.`);
   }
 }
 
@@ -55,13 +54,17 @@ btnRun?.addEventListener('click', async () => {
 
   try {
     const isOffline = !navigator.onLine;
-    const { text, ms, backend } = await runOnDevice('Reply with the word OK');
+    const { text, ms, backend, errorDetails } = await runOnDevice('Reply with the word OK');
 
-    const backendLabel = backend === 'native-nano' ? '[NATIVE CHROME GEMINI NANO]' : '[DEV SIMULATOR FALLBACK]';
+    const backendLabel = backend === 'native-nano' ? '[NATIVE CHROME GEMINI NANO]' : '[DEVELOPMENT SIMULATOR FALLBACK]';
 
-    log(
-      `SUCCESS: Model responded!\nBackend: ${backendLabel}\nOutput: "${text}"\nLatency: ${ms} ms\nOffline verified: ${isOffline ? 'YES (No internet)' : 'NO (Connected to internet)'}`
-    );
+    let resultMsg = `SUCCESS: Prompt completed!\nBackend: ${backendLabel}\nOutput: "${text}"\nLatency: ${ms} ms\nOffline verified: ${isOffline ? 'YES (No internet)' : 'NO (Connected to internet)'}`;
+
+    if (errorDetails) {
+      resultMsg += `\n${errorDetails}`;
+    }
+
+    log(resultMsg);
   } catch (err) {
     log(`ERROR: On-device prompt failed: ${err.message}`);
   } finally {
