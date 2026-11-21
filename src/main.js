@@ -1,11 +1,12 @@
 import { SAMPLES } from './samples.js';
 import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
 import { restore, validatePlaceholders } from './restore.js';
-import { runOnDevice, checkNanoCapabilities } from './ai.js';
+import { runOnDevice, runCloud, checkNanoCapabilities, isOnDeviceAvailable } from './ai.js';
 import { inspector } from './inspector.js';
 import { detectEntities } from './nano-entities.js';
 import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
 import { route } from './router.js';
+import { showReviewStep } from './review.js';
 
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
@@ -13,6 +14,7 @@ if (typeof window !== 'undefined') {
   window.analyzeWithCloud = analyzeWithCloud;
   window.verifyZeroLeakage = verifyZeroLeakage;
   window.route = route;
+  window.showReviewStep = showReviewStep;
 }
 
 // DOM Elements
@@ -165,96 +167,202 @@ btnAnalyze?.addEventListener('click', async () => {
   btnAnalyze.querySelector('span').textContent = 'Analyzing...';
   inspector.reset();
   renderInspector();
-  resultBox.textContent = 'Executing privacy redaction and document analysis...';
+  resultBox.textContent = 'Evaluating routing and document privacy...';
 
   try {
-    // 1. Regex Redaction Step
-    const tRegex0 = performance.now();
+    const onDevice = await isOnDeviceAvailable();
     const regexMatches = detectRegex(text);
-    const regexDur = performance.now() - tRegex0;
-
-    inspector.addStep({
-      id: 'step_regex',
-      label: `Pattern Scan (${regexMatches.length} regex matches)`,
-      where: 'local-code',
-      leftDevice: false,
-      durationMs: regexDur
+    const decision = route({
+      length: text.length,
+      sensitiveFound: regexMatches.length > 0,
+      onDeviceAvailable: onDevice,
+      online: typeof navigator !== 'undefined' ? navigator.onLine : true
     });
 
-    // 2. On-Device Entity Detection Step (Gemini Nano NER)
-    const tNer0 = performance.now();
-    const nanoMatches = await detectEntities(text);
-    const nerDur = performance.now() - tNer0;
+    console.log('[Router] Decision:', decision);
 
-    inspector.addStep({
-      id: 'step_nano_ner',
-      label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
-      where: 'on-device',
-      leftDevice: false,
-      durationMs: nerDur
-    });
-
-    // 3. Merge & Redaction Step
-    const tMerge0 = performance.now();
-    const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
-    const { redactedText, map } = buildRedaction(text, mergedMatches);
-    const mergeDur = performance.now() - tMerge0;
-
-    inspector.addStep({
-      id: 'step_redact',
-      label: `Merge & Redaction (${mergedMatches.length} matches, ${map.size} tokens)`,
-      where: 'local-code',
-      leftDevice: false,
-      durationMs: mergeDur
-    });
-
-    // 4. On-Device Model Step
-    const tNano0 = performance.now();
-    const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
-    const { text: modelAnswer, ms: nanoMs } = await runOnDevice(prompt);
-
-    inspector.addStep({
-      id: 'step_nano',
-      label: 'On-Device Document Analysis (Gemini Nano)',
-      where: 'on-device',
-      leftDevice: false,
-      durationMs: nanoMs
-    });
-
-    // 5. Local Restoration Step
-    const tRest0 = performance.now();
-    const validation = validatePlaceholders(modelAnswer, map);
-    const restoredAnswer = restore(modelAnswer, map);
-    const restDur = performance.now() - tRest0;
-
-    let restorationLabel = `Local Restoration (${map.size} placeholders restored to real values)`;
-    if (!validation.ok) {
-      restorationLabel += ` — [Notice: ${validation.unknown.length} unknown token(s)]`;
+    // 0. Hard Reject Case
+    if (decision.route === 'REJECT') {
+      resultBox.innerHTML = `<strong>Request Rejected:</strong> ${decision.reason}`;
+      return;
     }
 
-    inspector.addStep({
-      id: 'step_restore',
-      label: restorationLabel,
-      where: 'local-code',
-      leftDevice: false,
-      durationMs: restDur
-    });
+    // ROUTE A: Pure Local On-Device (Short or Offline)
+    if (decision.route === 'A') {
+      const tRegex0 = performance.now();
+      const regexDur = performance.now() - tRegex0;
 
-    // DevTools Privacy Verification Logging
-    console.group('🛡️ [Veil Privacy Engine] Redaction & Inference Inspection');
-    console.log('%c[1. Redacted Text Sent to AI Model]', 'color: #e11d48; font-weight: bold;', '\n' + redactedText);
-    console.log('%c[2. Protected Token Map]', 'color: #2563eb; font-weight: bold;');
-    console.table(Array.from(map.entries()).map(([token, val]) => ({ 'Placeholder Token': token, 'Protected Secret': val })));
-    console.log('%c[3. Raw AI Response with Tokens]', 'color: #d97706; font-weight: bold;', '\n' + modelAnswer);
-    console.log('%c[4. Placeholder Integrity Validation]', 'color: #8b5cf6; font-weight: bold;', {
-      valid: validation.ok,
-      unknownTokens: validation.unknown,
-      missingFromResponse: validation.missing
-    });
-    console.log('%c[5. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
-    console.groupEnd();
+      inspector.addStep({
+        id: 'step_regex',
+        label: `Pattern Scan (${regexMatches.length} regex matches)`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: regexDur
+      });
 
-    resultBox.textContent = restoredAnswer;
+      const tNer0 = performance.now();
+      const nanoMatches = await detectEntities(text);
+      const nerDur = performance.now() - tNer0;
+
+      inspector.addStep({
+        id: 'step_nano_ner',
+        label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+        where: 'on-device',
+        leftDevice: false,
+        durationMs: nerDur
+      });
+
+      const tMerge0 = performance.now();
+      const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
+      const { redactedText, map } = buildRedaction(text, mergedMatches);
+      const mergeDur = performance.now() - tMerge0;
+
+      inspector.addStep({
+        id: 'step_redact',
+        label: `Merge & Redaction (${mergedMatches.length} matches, ${map.size} tokens)`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: mergeDur
+      });
+
+      const tNano0 = performance.now();
+      const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
+      const { text: modelAnswer, ms: nanoMs } = await runOnDevice(prompt);
+
+      inspector.addStep({
+        id: 'step_nano',
+        label: 'On-Device Document Analysis (Gemini Nano) [Route A: Local Only]',
+        where: 'on-device',
+        leftDevice: false,
+        durationMs: nanoMs
+      });
+
+      const tRest0 = performance.now();
+      const validation = validatePlaceholders(modelAnswer, map);
+      const restoredAnswer = restore(modelAnswer, map);
+      const restDur = performance.now() - tRest0;
+
+      inspector.addStep({
+        id: 'step_restore',
+        label: `Local Restoration (${map.size} placeholders restored to real values)`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: restDur
+      });
+
+      resultBox.textContent = restoredAnswer;
+      return;
+    }
+
+    // ROUTE B: Public Non-Sensitive Document (Direct Cloud)
+    if (decision.route === 'B') {
+      const tCloud0 = performance.now();
+      const cloudResult = await analyzeWithCloud(text, new Map());
+      const cloudDur = performance.now() - tCloud0;
+
+      inspector.addStep({
+        id: 'step_cloud',
+        label: 'Cloud Document Analysis [Route B: Public Direct Cloud]',
+        where: 'cloud',
+        leftDevice: true,
+        durationMs: cloudDur
+      });
+
+      resultBox.textContent = cloudResult.text;
+      return;
+    }
+
+    // ROUTE C: Sensitive Hybrid (Redact On-Device, Interactive Review, Send to Cloud)
+    if (decision.route === 'C') {
+      // Step 1: Regex Scan
+      const tRegex0 = performance.now();
+      const regexDur = performance.now() - tRegex0;
+
+      inspector.addStep({
+        id: 'step_regex',
+        label: `Pattern Scan (${regexMatches.length} regex matches)`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: regexDur
+      });
+
+      // Step 2: On-Device Entity Detection (if Nano available)
+      let nanoMatches = [];
+      if (onDevice) {
+        const tNer0 = performance.now();
+        nanoMatches = await detectEntities(text);
+        const nerDur = performance.now() - tNer0;
+
+        inspector.addStep({
+          id: 'step_nano_ner',
+          label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+          where: 'on-device',
+          leftDevice: false,
+          durationMs: nerDur
+        });
+      }
+
+      // Step 3: Merge Matches
+      const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
+      renderInspector();
+
+      // Step 4: Interactive Review-Before-Sending Modal (Human in the Loop)
+      btnAnalyze.querySelector('span').textContent = 'Awaiting User Review...';
+      const reviewed = await showReviewStep(text, mergedMatches);
+
+      if (!reviewed.approved) {
+        resultBox.innerHTML = '<strong>Cloud Dispatch Cancelled:</strong> Analysis cancelled by user. Zero data left your device.';
+        return;
+      }
+
+      btnAnalyze.querySelector('span').textContent = 'Analyzing in Cloud...';
+
+      inspector.addStep({
+        id: 'step_redact_reviewed',
+        label: `User-Approved Redaction (${reviewed.matches.length} secrets protected, ${reviewed.map.size} unique tokens)`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: 1
+      });
+
+      // Step 5: Cloud Analysis with verified token payload
+      const tCloud0 = performance.now();
+      const cloudResult = await analyzeWithCloud(reviewed.redactedText, reviewed.map);
+      const cloudDur = performance.now() - tCloud0;
+
+      inspector.addStep({
+        id: 'step_cloud_c',
+        label: `Cloud AI Analysis (${cloudResult.retriesUsed > 0 ? 'Retried, ' : ''}App Check Verified)`,
+        where: 'cloud',
+        leftDevice: true,
+        durationMs: cloudDur
+      });
+
+      // Step 6: Local Restoration
+      const tRest0 = performance.now();
+      const validation = validatePlaceholders(cloudResult.text, reviewed.map);
+      const restoredAnswer = restore(cloudResult.text, reviewed.map);
+      const restDur = performance.now() - tRest0;
+
+      inspector.addStep({
+        id: 'step_restore_c',
+        label: `Local Restoration (${reviewed.map.size} placeholders restored in local memory)`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: restDur
+      });
+
+      // DevTools Inspection Logging
+      console.group('🛡️ [Veil Route C: Secure Cloud Analysis]');
+      console.log('%c[1. User-Approved Redacted Payload]', 'color: #e11d48; font-weight: bold;', '\n' + reviewed.redactedText);
+      console.log('%c[2. Protected Token Map]', 'color: #2563eb; font-weight: bold;');
+      console.table(Array.from(reviewed.map.entries()).map(([token, val]) => ({ 'Placeholder': token, 'Secret': val })));
+      console.log('%c[3. Cloud AI Response with Placeholders]', 'color: #d97706; font-weight: bold;', '\n' + cloudResult.text);
+      console.log('%c[4. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
+      console.groupEnd();
+
+      resultBox.textContent = restoredAnswer;
+    }
   } catch (err) {
     resultBox.textContent = `Error during analysis: ${err.message}`;
   } finally {

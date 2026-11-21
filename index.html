@@ -147,6 +147,51 @@
     </main>
   </div>
 
+  <!-- Review-Before-Sending Interactive Modal (Route C Gate) -->
+  <div id="review-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b57d0" stroke-width="2.2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+          </span>
+          <div>
+            <h3>Review Redactions Before Cloud Dispatch</h3>
+            <p>Verify sensitive data is concealed. Click <strong>&times;</strong> on any badge to unhide it, or select text and click <strong>Hide Selected Text</strong>.</p>
+          </div>
+        </div>
+        <span class="badge-route-c">Route C: Cloud Hybrid</span>
+      </div>
+
+      <div class="modal-toolbar">
+        <div class="redaction-stat" id="modal-stat-count">0 protected tokens</div>
+        <button id="btn-hide-selection" class="btn-secondary" title="Highlight text below and click here to hide it">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="16"></line>
+            <line x1="8" y1="12" x2="16" y2="12"></line>
+          </svg>
+          <span>Hide Selected Text</span>
+        </button>
+      </div>
+
+      <div id="review-content" class="review-content" tabindex="0">
+        <!-- Interactive highlighted tokens rendered here -->
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-review-cancel" class="btn-cancel">
+          Cancel & Stay Local
+        </button>
+        <button id="btn-review-send" class="btn-send-cloud">
+          <span>Approve & Send to Cloud AI &rarr;</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
