@@ -1,13 +1,33 @@
 /**
  * Veil AI Interface — Hybrid Route Control (On-Device Local vs Cloud)
  *
- * Implements forced on-device and forced cloud execution paths.
- * Task D1-T4 Go/No-Go requirement.
+ * Powered by Firebase AI Logic (firebase/ai).
+ * Creates localModel (pinned to on-device only) and cloudModel (pinned to cloud only).
+ * Guarantees zero fake fallbacks: on failure, throws real errors.
+ * Reference: Architecture.md section 5.6 & Hybrid Inference Guide
  */
 
-import { getAppCheckToken } from './firebase.js';
+import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
+import { app, getAppCheckToken } from './firebase.js';
+
+// 1. Initialize Firebase AI Logic service instance
+export const ai = getAI(app, { backend: new GoogleAIBackend() });
+
+// 2. Create localModel pinned to on-device only (hybrid inference guide)
+export const localModel = getGenerativeModel(ai, {
+  model: 'gemini-nano',
+  mode: 'only_on_device'
+});
+
+// 3. Create cloudModel pinned to cloud only (hybrid inference guide)
+export const cloudModel = getGenerativeModel(ai, {
+  model: 'gemini-2.0-flash',
+  mode: 'only_in_cloud'
+});
 
 let activeNanoSession = null;
+let pristineBaseSession = null;
+let isPrewarming = false;
 
 /**
  * Inspects Chrome's built-in on-device AI capabilities across all known Chrome API iterations.
@@ -82,9 +102,6 @@ export async function isOnDeviceAvailable() {
   return check.available;
 }
 
-let pristineBaseSession = null;
-let isPrewarming = false;
-
 /**
  * Pre-warms a pristine Gemini Nano session in the background on startup.
  * Guarantees zero prompt pollution because this session is never prompted directly;
@@ -117,17 +134,10 @@ export async function prewarmNanoSession() {
 }
 
 /**
- * Executes a prompt STRICTLY on-device (localModel).
- * Guarantees zero network calls (works offline; never falls back to cloud).
- *
- * @param {string} prompt
- * @returns {Promise<{ text: string, ms: number, backend: 'on-device-nano' }>}
+ * Executes on-device inference via the isolated Chrome LanguageModel runtime.
+ * @private
  */
-export async function runOnDevice(prompt) {
-  const start = performance.now();
-  console.log('[AI:OnDevice] Prompting Gemini Nano:\n', prompt);
-
-  // 1. Modern W3C LanguageModel (fresh cloned session to prevent multi-turn pollution & avoid WebGPU reload)
+async function executeIsolatedChromeLanguageModel(prompt, start) {
   const LMConstructor = typeof window !== 'undefined' && typeof window.LanguageModel !== 'undefined'
     ? window.LanguageModel
     : (typeof LanguageModel !== 'undefined' ? LanguageModel : null);
@@ -136,7 +146,6 @@ export async function runOnDevice(prompt) {
     let session = null;
     let isCloned = false;
     try {
-      // Fast session clone from pristine base session (~15ms)
       if (pristineBaseSession && typeof pristineBaseSession.clone === 'function') {
         try {
           session = await pristineBaseSession.clone();
@@ -172,7 +181,7 @@ export async function runOnDevice(prompt) {
     }
   }
 
-  // 2. Legacy window.ai.languageModel (fresh session per call)
+  // Legacy window.ai.languageModel
   if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
     let legacySession = null;
     try {
@@ -191,31 +200,57 @@ export async function runOnDevice(prompt) {
     }
   }
 
-  // Fallback simulator for offline testing when model is uninitialized
-  await new Promise(r => setTimeout(r, 120));
-  const ms = Math.round(performance.now() - start);
-
-  if (prompt.toLowerCase().includes('ok')) {
-    return { text: 'OK', ms, backend: 'on-device-nano' };
-  }
-
-  if (prompt.toLowerCase().includes('hello')) {
-    return { text: 'Hello! I am Gemini Nano running on your local device.', ms, backend: 'on-device-nano' };
-  }
-
-  return {
-    text: `[Local On-Device Analysis] Completed locally in browser memory.`,
-    ms,
-    backend: 'on-device-nano'
-  };
+  return null;
 }
 
 /**
- * Executes a prompt STRICTLY on the Cloud (cloudModel).
- * Fails immediately if offline; passes App Check token when online.
+ * Executes a prompt STRICTLY on-device via Firebase AI Logic localModel.
+ * Guarantees zero network calls (works offline; never falls back to cloud).
+ * Zero fake canned fallbacks: throws an error if on-device model is unavailable.
  *
  * @param {string} prompt
- * @returns {Promise<{ text: string, ms: number, backend: 'cloud' }>}
+ * @returns {Promise<{ text: string, ms: number, backend: 'on-device-nano', tokenCount?: number|null }>}
+ */
+export async function runOnDevice(prompt) {
+  const start = performance.now();
+  console.log('[AI:OnDevice] Executing on-device inference via localModel (Firebase AI Logic):', prompt);
+
+  // 1. Route through Firebase AI Logic SDK localModel (pinned to on-device only)
+  try {
+    if (localModel && typeof localModel.generateContent === 'function') {
+      const result = await localModel.generateContent(prompt);
+      if (result && result.response) {
+        const response = await result.response;
+        const text = typeof response.text === 'function' ? response.text() : response.text;
+        if (text) {
+          const ms = Math.round(performance.now() - start);
+          const tokenCount = response.usageMetadata?.totalTokenCount || null;
+          return { text: text.trim(), ms, tokenCount, backend: 'on-device-nano' };
+        }
+      }
+    }
+  } catch (sdkErr) {
+    console.warn('[AI:OnDevice] SDK localModel dispatch note:', sdkErr.message);
+  }
+
+  // 2. Isolated Chrome LanguageModel runtime backing the on-device environment
+  const directResult = await executeIsolatedChromeLanguageModel(prompt, start);
+  if (directResult) {
+    return directResult;
+  }
+
+  // Rule 4: On failure, throw a real error (no fake fallbacks or canned responses)
+  throw new Error('OnDeviceModelUnavailable: Gemini Nano on-device model is not available or failed to respond.');
+}
+
+/**
+ * Executes a prompt STRICTLY on the Cloud via Firebase AI Logic cloudModel.
+ * Pinned to cloud-only (generateContent).
+ * Fails immediately if offline; passes App Check token when online.
+ * Zero fake fallbacks: returns real text, real latency, and token count.
+ *
+ * @param {string} prompt
+ * @returns {Promise<{ text: string, ms: number, backend: 'cloud', tokenCount?: number|null, appCheckVerified: boolean }>}
  */
 export async function runCloud(prompt) {
   const start = performance.now();
@@ -236,7 +271,7 @@ export async function runCloud(prompt) {
         cache: 'no-store',
         signal: AbortSignal.timeout(2500)
       });
-    } catch (netErr) {
+    } catch {
       throw new Error('NetworkError: Cloud inference unavailable while offline. Check internet connection.');
     }
   }
@@ -250,48 +285,31 @@ export async function runCloud(prompt) {
     console.warn('[AI:Cloud] App Check notice:', err.message);
   }
 
-  // Simulate network latency (or live Firebase AI Logic call)
-  await new Promise(r => setTimeout(r, 450));
-  const ms = Math.round(performance.now() - start);
+  console.log('[AI:Cloud] Calling cloudModel.generateContent (Firebase AI Logic)...');
 
-  let responseText;
-  if (prompt.toLowerCase().includes('hello')) {
-    responseText = 'Hello! I am Cloud Gemini analyzing your document securely.';
-  } else {
-    // Extract placeholders strictly from the document payload section
-    const docSection = prompt.includes('TEXT:\n"""')
-      ? prompt.split('TEXT:\n"""')[1].split('"""')[0]
-      : prompt;
-    const placeholderMatches = docSection.match(/\[[A-Za-z0-9_]+\]/g) || [];
-    const uniqueTokens = Array.from(new Set(placeholderMatches));
+  // Real Firebase AI Logic call pinned to cloud-only (generateContent)
+  try {
+    const result = await cloudModel.generateContent(prompt);
+    const response = await result.response;
+    const text = typeof response.text === 'function' ? response.text() : response.text;
+    const ms = Math.round(performance.now() - start);
 
-    if (uniqueTokens.length > 0) {
-      const topTokens = uniqueTokens.slice(0, 4).join(', ');
-      responseText = `1. Summary:
-This document details an agreement involving ${topTokens}. Key responsibilities, deliverables, and financial compensation terms are defined.
+    const tokenCount = response.usageMetadata?.totalTokenCount 
+      || response.usageMetadata?.candidatesTokenCount
+      || null;
 
-2. Key risks or concerns:
-Delays in milestone delivery and failure to comply with confidentiality covenants.
-
-3. Deadlines and dates:
-Milestones and delivery schedules outlined in the contract terms.
-
-4. Action items (who, what, when):
-- Named parties to deliver signed architecture deliverables.
-- Designated disbursements to be processed upon milestone sign-off.`;
-    } else {
-      responseText = `[Cloud Analysis Result]
-1. Summary: Document analyzed in cloud infrastructure with verified App Check authentication.
-2. Latency: ${ms} ms round-trip.`;
-    }
+    return {
+      text: text.trim(),
+      ms,
+      tokenCount,
+      backend: 'cloud',
+      appCheckVerified: Boolean(appCheckHeader)
+    };
+  } catch (err) {
+    console.error('[AI:Cloud] Firebase AI Logic cloudModel error:', err);
+    // Rule 4: On failure, throw error (no fake canned templates)
+    throw err;
   }
-
-  return {
-    text: responseText,
-    ms,
-    backend: 'cloud',
-    appCheckVerified: Boolean(appCheckHeader)
-  };
 }
 
 /**

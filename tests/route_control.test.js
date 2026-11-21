@@ -1,25 +1,53 @@
-import { describe, it, expect } from 'vitest';
-import { runOnDevice, runCloud } from '../src/ai.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { runOnDevice, runCloud, localModel, cloudModel } from '../src/ai.js';
 
 describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
-  it('forces on-device-only execution and works offline', async () => {
-    const { text, ms, backend } = await runOnDevice('Say hello');
+  let localSpy;
+  let cloudSpy;
 
-    expect(backend).toBe('on-device-nano');
-    expect(text.toLowerCase()).toContain('hello');
-    expect(ms).toBeGreaterThan(0);
+  beforeEach(() => {
+    localSpy = vi.spyOn(localModel, 'generateContent').mockResolvedValue({
+      response: Promise.resolve({
+        text: () => 'Hello from local on-device model',
+        usageMetadata: { totalTokenCount: 6 }
+      })
+    });
+
+    cloudSpy = vi.spyOn(cloudModel, 'generateContent').mockResolvedValue({
+      response: Promise.resolve({
+        text: () => 'Hello from cloud model',
+        usageMetadata: { totalTokenCount: 5 }
+      })
+    });
   });
 
-  it('forces cloud-only execution when online', async () => {
-    const { text, ms, backend } = await runCloud('Say hello');
+  afterEach(() => {
+    localSpy?.mockRestore();
+    cloudSpy?.mockRestore();
+  });
 
+  it('forces on-device-only execution via localModel and works offline', async () => {
+    const { text, ms, backend, tokenCount } = await runOnDevice('Say hello');
+
+    expect(localSpy).toHaveBeenCalledWith('Say hello');
+    expect(cloudSpy).not.toHaveBeenCalled();
+    expect(backend).toBe('on-device-nano');
+    expect(text.toLowerCase()).toContain('hello');
+    expect(ms).toBeGreaterThanOrEqual(0);
+    expect(tokenCount).toBe(6);
+  });
+
+  it('forces cloud-only execution via cloudModel when online', async () => {
+    const { text, ms, backend, tokenCount } = await runCloud('Say hello');
+
+    expect(cloudSpy).toHaveBeenCalledWith('Say hello');
     expect(backend).toBe('cloud');
     expect(text.toLowerCase()).toContain('hello');
-    expect(ms).toBeGreaterThan(0);
+    expect(ms).toBeGreaterThanOrEqual(0);
+    expect(tokenCount).toBe(5);
   });
 
   it('fails cloud-only execution with a NetworkError when offline', async () => {
-    // Mock navigator.onLine as false using defineProperty
     const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'onLine');
     Object.defineProperty(globalThis.navigator, 'onLine', {
       value: false,
@@ -44,5 +72,7 @@ describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
     expect(local.backend).not.toBe(cloud.backend);
     expect(local.backend).toBe('on-device-nano');
     expect(cloud.backend).toBe('cloud');
+    expect(localSpy).toHaveBeenCalled();
+    expect(cloudSpy).toHaveBeenCalled();
   });
 });
