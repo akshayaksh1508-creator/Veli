@@ -27,6 +27,33 @@
       </div>
     </header>
 
+    <!-- "How Veil Protects You" 10-Second Explainer Strip (D3-T2) -->
+    <div class="how-veil-protects">
+      <div class="how-step">
+        <span class="step-num">1</span>
+        <div class="step-text">
+          <strong>On-Device Redaction</strong>
+          <span>Gemini Nano & Regex strip secrets into tokens</span>
+        </div>
+      </div>
+      <div class="how-arrow">&rarr;</div>
+      <div class="how-step">
+        <span class="step-num">2</span>
+        <div class="step-text">
+          <strong>Secure Cloud AI</strong>
+          <span>Cloud analyzes anonymized tokens with 0 secrets</span>
+        </div>
+      </div>
+      <div class="how-arrow">&rarr;</div>
+      <div class="how-step">
+        <span class="step-num">3</span>
+        <div class="step-text">
+          <strong>Private Local Restore</strong>
+          <span>Placeholders restored in browser memory</span>
+        </div>
+      </div>
+    </div>
+
     <!-- On-Device AI Unavailable Warning Banner (D3-T1) -->
     <div id="nano-unavailable-banner" class="banner-notice hidden">
       <div class="banner-icon">
@@ -62,6 +89,14 @@
         </div>
 
         <div class="panel-body">
+          <!-- Quick Load Sample Bar (D3-T2) -->
+          <div class="samples-bar">
+            <span class="samples-label">LOAD SAMPLE:</span>
+            <button type="button" class="sample-btn" data-sample="SAMPLE_1" title="Short note under 1500 chars (Runs 100% on-device)">1. Loan Note (Route A: On-Device)</button>
+            <button type="button" class="sample-btn active" data-sample="SAMPLE_2" title="Full contract with sensitive data (Hybrid pipeline)">2. Contract (Route C: Hybrid)</button>
+            <button type="button" class="sample-btn" data-sample="SAMPLE_3" title="Public non-sensitive text (Direct cloud)">3. Tech Article (Route B: Cloud)</button>
+          </div>
+
           <textarea
             id="doc-input"
             class="doc-input"

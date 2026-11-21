@@ -109,7 +109,7 @@ function updateCharCount() {
 
 docInput?.addEventListener('input', updateCharCount);
 
-// Sample document buttons fill the textarea & toggle active state
+// Sample document buttons fill the textarea & toggle active state (D3-T2)
 document.querySelectorAll('.sample-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.sample-btn').forEach(b => b.classList.remove('active'));
@@ -123,13 +123,13 @@ document.querySelectorAll('.sample-btn').forEach(btn => {
       // Update bottom contextual callout based on sample
       if (calloutText) {
         if (key === 'SAMPLE_1') {
-          calloutText.textContent = 'Rahul Mehta at 98450 12345 will confirm. Email him at rahul.mehta@example.com.';
+          calloutText.textContent = 'Route A (On-Device): Short note under 1,500 chars. Analyzed 100% on Gemini Nano without cloud network calls.';
         } else if (key === 'SAMPLE_2') {
-          calloutText.textContent = 'Payments shall be made via NEFT/RTGS to Contractor\'s designated bank account:';
+          calloutText.textContent = 'Route C (Hybrid): Full agreement with sensitive data. Redacted on-device, human-reviewed, then analyzed by Cloud AI.';
         } else if (key === 'SAMPLE_3') {
-          calloutText.textContent = 'Public infrastructure article with zero personal or financial identifiable data.';
+          calloutText.textContent = 'Route B (Direct Cloud): Long public technical article with zero PII. Sent directly to Cloud AI.';
         } else {
-          calloutText.textContent = 'Tricky entities: Luhn card validation, phone overlaps, and addresses.';
+          calloutText.textContent = 'Edge cases: Luhn card validation, phone overlaps, and addresses.';
         }
       }
     }
@@ -603,9 +603,12 @@ btnAnalyze?.addEventListener('click', async () => {
   }
 });
 
-// Initialize on page load
+// Initialize on page load (D3-T2: First-Run Experience)
 initStatus();
-updateCharCount();
-if (calloutText) {
-  calloutText.textContent = 'Paste any document containing sensitive personal, financial, or contract data to analyze securely.';
+if (docInput && SAMPLES.SAMPLE_2) {
+  docInput.value = SAMPLES.SAMPLE_2.text;
+  if (calloutText) {
+    calloutText.textContent = 'Route C (Hybrid): Full agreement with sensitive data. Redacted on-device, human-reviewed, then analyzed by Cloud AI.';
+  }
 }
+updateCharCount();
