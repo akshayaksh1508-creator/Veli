@@ -1,5 +1,5 @@
 import { SAMPLES } from './samples.js';
-import { detectRegex, buildRedaction } from './redact.js';
+import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
 import { restore } from './restore.js';
 import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
