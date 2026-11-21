@@ -31,15 +31,20 @@ ${chunk}
  * Builds the cloud analysis prompt for Route B & C.
  *
  * @param {string} redactedText
+ * @param {boolean} [isRetry=false]
  * @returns {string}
  */
-export function buildCloudAnalysisPrompt(redactedText) {
-  return `You are a careful document analyst.
+export function buildCloudAnalysisPrompt(redactedText, isRetry = false) {
+  let prompt = `You are a careful document analyst.
 The text may contain placeholders like [PERSON_1], [AMOUNT_2], [ACCOUNT_1].
 Treat each placeholder as an opaque value. Never guess what it is.
-Copy placeholders EXACTLY as written, including the square brackets.
+Copy placeholders EXACTLY as written, including the square brackets.`;
 
-Return these sections in plain text:
+  if (isRetry) {
+    prompt += `\nCRITICAL: Use only the placeholders present in the text. Do not invent or alter placeholder names.`;
+  }
+
+  prompt += `\n\nReturn these sections in plain text:
 1. Summary (3 to 5 sentences)
 2. Key risks or concerns
 3. Deadlines and dates
@@ -49,6 +54,8 @@ TEXT:
 """
 ${redactedText}
 """`;
+
+  return prompt;
 }
 
 /**

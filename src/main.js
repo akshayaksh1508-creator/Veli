@@ -4,10 +4,13 @@ import { restore, validatePlaceholders } from './restore.js';
 import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
 import { detectEntities } from './nano-entities.js';
+import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
 
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
   window.detectEntities = detectEntities;
+  window.analyzeWithCloud = analyzeWithCloud;
+  window.verifyZeroLeakage = verifyZeroLeakage;
 }
 
 // DOM Elements

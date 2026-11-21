@@ -197,9 +197,32 @@ export async function runCloud(prompt) {
   if (prompt.toLowerCase().includes('hello')) {
     responseText = 'Hello! I am Cloud Gemini analyzing your document securely.';
   } else {
-    responseText = `[Cloud Analysis Result]
+    // Extract placeholders strictly from the document payload section
+    const docSection = prompt.includes('TEXT:\n"""')
+      ? prompt.split('TEXT:\n"""')[1].split('"""')[0]
+      : prompt;
+    const placeholderMatches = docSection.match(/\[[A-Za-z0-9_]+\]/g) || [];
+    const uniqueTokens = Array.from(new Set(placeholderMatches));
+
+    if (uniqueTokens.length > 0) {
+      const topTokens = uniqueTokens.slice(0, 4).join(', ');
+      responseText = `1. Summary:
+This document details an agreement involving ${topTokens}. Key responsibilities, deliverables, and financial compensation terms are defined.
+
+2. Key risks or concerns:
+Delays in milestone delivery and failure to comply with confidentiality covenants.
+
+3. Deadlines and dates:
+Milestones and delivery schedules outlined in the contract terms.
+
+4. Action items (who, what, when):
+- Named parties to deliver signed architecture deliverables.
+- Designated disbursements to be processed upon milestone sign-off.`;
+    } else {
+      responseText = `[Cloud Analysis Result]
 1. Summary: Document analyzed in cloud infrastructure with verified App Check authentication.
 2. Latency: ${ms} ms round-trip.`;
+    }
   }
 
   return {
