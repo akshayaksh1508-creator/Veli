@@ -2,9 +2,9 @@ import { SAMPLES } from './samples.js';
 import { CONFIG } from './config.js';
 import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
 import { restore, validatePlaceholders } from './restore.js';
-import { runOnDevice, runCloud, checkNanoCapabilities, isOnDeviceAvailable } from './ai.js';
+import { runOnDevice, runCloud, checkNanoCapabilities, isOnDeviceAvailable, prewarmNanoSession } from './ai.js';
 import { inspector } from './inspector.js';
-import { detectEntities } from './nano-entities.js';
+import { detectEntities, filterNanoEntities } from './nano-entities.js';
 import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
 import { route } from './router.js';
 import { showReviewStep } from './review.js';
@@ -79,15 +79,21 @@ async function initStatus() {
   // Poll network status every 4 seconds to catch Wi-Fi drops despite Windows virtual adapters
   setInterval(checkRealConnectivity, 4000);
 
-  // Inspect Nano capabilities (Scenario 5: Nano unavailable banner)
+  // Inspect Nano capabilities (Priority 2 Fix: green when ready, orange only for downloading/unavailable)
   const check = await checkNanoCapabilities();
   if (check.available) {
-    dotNano.className = 'status-dot nano';
+    dotNano.className = 'status-dot active';
     textNano.textContent = 'Nano: Ready';
     nanoBanner?.classList.add('hidden');
+    // Pre-warm base session in background for instant prompt execution
+    prewarmNanoSession().catch(() => {});
+  } else if (check.status === 'downloading' || check.status === 'downloadable') {
+    dotNano.className = 'status-dot warning';
+    textNano.textContent = 'Nano: Downloading...';
+    nanoBanner?.classList.remove('hidden');
   } else {
-    dotNano.className = 'status-dot';
-    textNano.textContent = 'Nano: Local Fallback';
+    dotNano.className = 'status-dot warning';
+    textNano.textContent = 'Nano: Unavailable';
     nanoBanner?.classList.remove('hidden');
   }
 
@@ -545,11 +551,14 @@ btnAnalyze?.addEventListener('click', async () => {
         }
         const nerDur = performance.now() - tNer0;
 
+        // Priority 2 Quality Fix: Filter to keep only PERSON, ORG, ADDRESS and drop regex overlaps
+        const validNanoMatches = filterNanoEntities(nanoMatches, regexMatches);
+
         inspector.addStep({
           id: 'step_nano_ner',
           label: nanoWarning
             ? `On-Device Entity Detection (Note: Model unparseable — falling back to regex-only)`
-            : `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+            : `On-Device Entity Detection (${validNanoMatches.length} names, orgs, addresses)`,
           where: 'on-device',
           leftDevice: false,
           durationMs: nerDur
@@ -564,7 +573,8 @@ btnAnalyze?.addEventListener('click', async () => {
         });
       }
 
-      const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
+      const validNanoMatches = filterNanoEntities(nanoMatches, regexMatches);
+      const mergedMatches = mergeMatches([regexMatches, validNanoMatches]);
       renderInspector();
 
       btnAnalyze.querySelector('span').textContent = 'Awaiting User Review...';

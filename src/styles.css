@@ -108,11 +108,14 @@ header {
   background: #94a3b8;
 }
 
-.status-dot.active {
+.status-dot.active,
+.status-dot.ready {
   background: #10b981;
 }
 
-.status-dot.nano {
+.status-dot.warning,
+.status-dot.nano,
+.status-dot.downloading {
   background: #f59e0b;
 }
 

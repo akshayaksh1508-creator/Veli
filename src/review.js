@@ -130,6 +130,7 @@ export function showReviewStep(text, initialMatches) {
     const btnCancel = document.getElementById('btn-review-cancel');
     const btnHideSel = document.getElementById('btn-hide-selection');
     const statCount = document.getElementById('modal-stat-count');
+    const toggleAmounts = document.getElementById('toggle-redact-amounts');
 
     if (!modal || !content || !btnSend || !btnCancel) {
       // Fallback if modal DOM is missing: auto-rebuild
@@ -138,6 +139,11 @@ export function showReviewStep(text, initialMatches) {
       return;
     }
 
+    if (toggleAmounts) {
+      toggleAmounts.checked = true;
+    }
+
+    const baseMatches = [...initialMatches];
     let currentMatches = [...initialMatches];
 
     function update() {
@@ -150,6 +156,18 @@ export function showReviewStep(text, initialMatches) {
         currentMatches = removeMatch(currentMatches, indexToRemove);
         update();
       });
+    }
+
+    function onToggleAmounts() {
+      if (!toggleAmounts) return;
+      if (toggleAmounts.checked) {
+        const amounts = baseMatches.filter(m => m.type === 'AMOUNT');
+        const nonAmounts = currentMatches.filter(m => m.type !== 'AMOUNT');
+        currentMatches = [...nonAmounts, ...amounts];
+      } else {
+        currentMatches = currentMatches.filter(m => m.type !== 'AMOUNT');
+      }
+      update();
     }
 
     // Handle Manual Selection Hide
@@ -178,6 +196,7 @@ export function showReviewStep(text, initialMatches) {
       btnSend.removeEventListener('click', onApprove);
       btnCancel.removeEventListener('click', onReject);
       btnHideSel?.removeEventListener('click', onHideSelection);
+      toggleAmounts?.removeEventListener('change', onToggleAmounts);
     }
 
     function onApprove() {
@@ -202,6 +221,7 @@ export function showReviewStep(text, initialMatches) {
     btnSend.addEventListener('click', onApprove);
     btnCancel.addEventListener('click', onReject);
     btnHideSel?.addEventListener('click', onHideSelection);
+    toggleAmounts?.addEventListener('change', onToggleAmounts);
 
     // Initial render and show modal
     update();

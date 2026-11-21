@@ -5,7 +5,8 @@ import {
   parseModelEntityJson,
   locateAllOccurrences,
   parseAndLocateEntities,
-  detectEntities
+  detectEntities,
+  filterNanoEntities
 } from '../src/nano-entities.js';
 
 describe('D2-T1: Nano Entity Detection (NER)', () => {
@@ -140,6 +141,37 @@ Hope this helps!`;
       expect(matches).toEqual([]);
       expect(warnings.length).toBeGreaterThan(0);
       expect(warnings[0]).toContain('Nano entity detection warning');
+    });
+  });
+
+  describe('5. Entity Filtering & Overlap Removal', () => {
+    it('keeps only PERSON, ORG, and ADDRESS, and filters out other types or generic words', () => {
+      const raw = [
+        { start: 0, end: 15, text: 'Vikram Malhotra', type: 'PERSON' },
+        { start: 20, end: 32, text: 'Apex Global', type: 'ORG' },
+        { start: 40, end: 57, text: '44 Residency Road', type: 'ADDRESS' },
+        { start: 60, end: 69, text: 'Bengaluru', type: 'LOCATION' },
+        { start: 75, end: 84, text: 'Agreement', type: 'ORG' },
+        { start: 90, end: 97, text: 'Project', type: 'PERSON' }
+      ];
+
+      const filtered = filterNanoEntities(raw, []);
+      expect(filtered.length).toBe(3);
+      expect(filtered.map(f => f.text)).toEqual(['Vikram Malhotra', 'Apex Global', '44 Residency Road']);
+    });
+
+    it('drops nano entities that overlap with regex matches', () => {
+      const raw = [
+        { start: 10, end: 35, text: 'rahul.mehta@example.com', type: 'PERSON' },
+        { start: 40, end: 51, text: 'Rahul Mehta', type: 'PERSON' }
+      ];
+      const regexMatches = [
+        { start: 10, end: 35, text: 'rahul.mehta@example.com', type: 'EMAIL' }
+      ];
+
+      const filtered = filterNanoEntities(raw, regexMatches);
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].text).toBe('Rahul Mehta');
     });
   });
 });

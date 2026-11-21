@@ -246,3 +246,60 @@ export async function detectEntities(text, options = {}) {
     return [];
   }
 }
+
+export const GENERIC_STOPWORDS = new Set([
+  'agreement', 'contract', 'article', 'document', 'project', 'client',
+  'contractor', 'service', 'services', 'party', 'parties', 'section',
+  'company', 'terms', 'clause', 'schedule', 'annexure', 'exhibit',
+  'author', 'developer', 'engineer', 'manager', 'director', 'lead',
+  'email', 'phone', 'account', 'note', 'reminder', 'hi', 'hello',
+  'report', 'summary', 'details', 'queries'
+]);
+
+/**
+ * Filters detected Nano entities to ensure count accuracy:
+ * - Keeps strictly PERSON, ORG, and ADDRESS
+ * - Drops single generic stop words
+ * - Drops entities that overlap with any regex match (e.g. emails, phone numbers, amounts)
+ *
+ * @param {Array<object>} nanoMatches - Raw matches from detectEntities
+ * @param {Array<object>} [regexMatches=[]] - Matches found by detectRegex
+ * @returns {Array<object>}
+ */
+export function filterNanoEntities(nanoMatches, regexMatches = []) {
+  if (!Array.isArray(nanoMatches)) return [];
+
+  console.log('[NanoNER] Raw detected entities:', nanoMatches);
+
+  const filtered = nanoMatches.filter(nano => {
+    // 1. Keep strictly PERSON, ORG, and ADDRESS
+    const type = String(nano.type || '').toUpperCase();
+    if (!['PERSON', 'ORG', 'ADDRESS'].includes(type)) {
+      return false;
+    }
+
+    // 2. Drop single generic words
+    const cleanWord = nano.text.trim().toLowerCase();
+    if (GENERIC_STOPWORDS.has(cleanWord)) {
+      return false;
+    }
+    if (cleanWord.length < 2 || !/[A-Za-z0-9]/.test(cleanWord)) {
+      return false;
+    }
+
+    // 3. Drop entities that overlap with any regex match
+    if (Array.isArray(regexMatches) && regexMatches.length > 0) {
+      const overlaps = regexMatches.some(regex => {
+        return Math.max(nano.start, regex.start) < Math.min(nano.end, regex.end);
+      });
+      if (overlaps) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  console.log('[NanoNER] Filtered entities (PERSON, ORG, ADDRESS):', filtered);
+  return filtered;
+}

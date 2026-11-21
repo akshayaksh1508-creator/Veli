@@ -42,7 +42,7 @@ export function route({ length, sensitiveFound, onDeviceAvailable, online }) {
   if (!online && onDeviceAvailable) {
     let warning;
     if (length > CONFIG.SHORT_LIMIT) {
-      warning = `Offline mode: document exceeds recommended local limit (${CONFIG.SHORT_LIMIT} chars); quality may be reduced or chunked.`;
+      warning = `Offline mode: document exceeds recommended local limit (${CONFIG.SHORT_LIMIT} chars); local analysis quality may be reduced.`;
       warnings.push(warning);
     }
     return {

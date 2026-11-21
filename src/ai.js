@@ -82,6 +82,40 @@ export async function isOnDeviceAvailable() {
   return check.available;
 }
 
+let pristineBaseSession = null;
+let isPrewarming = false;
+
+/**
+ * Pre-warms a pristine Gemini Nano session in the background on startup.
+ * Guarantees zero prompt pollution because this session is never prompted directly;
+ * incoming prompts clone it via session.clone(), avoiding 2-3s WebGPU re-init delay.
+ */
+export async function prewarmNanoSession() {
+  if (pristineBaseSession || isPrewarming) return;
+  const LMConstructor = typeof window !== 'undefined' && typeof window.LanguageModel !== 'undefined'
+    ? window.LanguageModel
+    : (typeof LanguageModel !== 'undefined' ? LanguageModel : null);
+
+  if (LMConstructor) {
+    try {
+      isPrewarming = true;
+      try {
+        pristineBaseSession = await LMConstructor.create({
+          expectedOutputs: [{ type: 'text', languages: ['en'] }]
+        });
+      } catch {
+        pristineBaseSession = await LMConstructor.create();
+      }
+      console.log('[AI:OnDevice] Base Gemini Nano session pre-warmed successfully.');
+    } catch (err) {
+      console.warn('[AI:OnDevice] Pre-warm failed (will create fresh on demand):', err);
+      pristineBaseSession = null;
+    } finally {
+      isPrewarming = false;
+    }
+  }
+}
+
 /**
  * Executes a prompt STRICTLY on-device (localModel).
  * Guarantees zero network calls (works offline; never falls back to cloud).
@@ -91,22 +125,35 @@ export async function isOnDeviceAvailable() {
  */
 export async function runOnDevice(prompt) {
   const start = performance.now();
-  console.log('[AI:OnDevice] Prompting Gemini Nano (fresh session):\n', prompt);
+  console.log('[AI:OnDevice] Prompting Gemini Nano:\n', prompt);
 
-  // 1. Modern W3C LanguageModel (fresh session per call to prevent multi-turn pollution)
+  // 1. Modern W3C LanguageModel (fresh cloned session to prevent multi-turn pollution & avoid WebGPU reload)
   const LMConstructor = typeof window !== 'undefined' && typeof window.LanguageModel !== 'undefined'
     ? window.LanguageModel
     : (typeof LanguageModel !== 'undefined' ? LanguageModel : null);
 
   if (LMConstructor) {
     let session = null;
+    let isCloned = false;
     try {
-      try {
-        session = await LMConstructor.create({
-          expectedOutputs: [{ type: 'text', languages: ['en'] }]
-        });
-      } catch {
-        session = await LMConstructor.create();
+      // Fast session clone from pristine base session (~15ms)
+      if (pristineBaseSession && typeof pristineBaseSession.clone === 'function') {
+        try {
+          session = await pristineBaseSession.clone();
+          isCloned = true;
+        } catch {
+          pristineBaseSession = null;
+        }
+      }
+
+      if (!session) {
+        try {
+          session = await LMConstructor.create({
+            expectedOutputs: [{ type: 'text', languages: ['en'] }]
+          });
+        } catch {
+          session = await LMConstructor.create();
+        }
       }
 
       const response = await session.prompt(prompt);
@@ -115,7 +162,7 @@ export async function runOnDevice(prompt) {
       }
 
       const ms = Math.round(performance.now() - start);
-      console.log(`[AI:OnDevice] Response received in ${ms}ms:\n`, response);
+      console.log(`[AI:OnDevice] Response received in ${ms}ms (${isCloned ? 'cloned session' : 'fresh session'}):\n`, response);
       return { text: response.trim(), ms, backend: 'on-device-nano' };
     } catch (err) {
       if (session && typeof session.destroy === 'function') {
