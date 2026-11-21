@@ -65,10 +65,12 @@ ${redactedText}
  * @returns {string}
  */
 export function buildLocalAnalysisPrompt(text) {
-  return `You are a careful document analyst. Summarize key points and action items. Keep it brief (2-4 sentences).
+  return `You are a careful document analyst. Analyze the following document text and provide a concise summary with key points and action items.
 
-TEXT:
+DOCUMENT:
 """
 ${text}
-"""`;
+"""
+
+Provide your analysis below:`;
 }

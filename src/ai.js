@@ -91,41 +91,55 @@ export async function isOnDeviceAvailable() {
  */
 export async function runOnDevice(prompt) {
   const start = performance.now();
+  console.log('[AI:OnDevice] Prompting Gemini Nano (fresh session):\n', prompt);
 
-  // 1. Modern W3C LanguageModel
+  // 1. Modern W3C LanguageModel (fresh session per call to prevent multi-turn pollution)
   const LMConstructor = typeof window !== 'undefined' && typeof window.LanguageModel !== 'undefined'
     ? window.LanguageModel
     : (typeof LanguageModel !== 'undefined' ? LanguageModel : null);
 
   if (LMConstructor) {
+    let session = null;
     try {
-      if (!activeNanoSession) {
-        try {
-          activeNanoSession = await LMConstructor.create({
-            expectedOutputs: [{ type: 'text', languages: ['en'] }]
-          });
-        } catch {
-          activeNanoSession = await LMConstructor.create();
-        }
+      try {
+        session = await LMConstructor.create({
+          expectedOutputs: [{ type: 'text', languages: ['en'] }]
+        });
+      } catch {
+        session = await LMConstructor.create();
       }
-      const response = await activeNanoSession.prompt(prompt);
+
+      const response = await session.prompt(prompt);
+      if (session && typeof session.destroy === 'function') {
+        try { session.destroy(); } catch {}
+      }
+
       const ms = Math.round(performance.now() - start);
+      console.log(`[AI:OnDevice] Response received in ${ms}ms:\n`, response);
       return { text: response.trim(), ms, backend: 'on-device-nano' };
     } catch (err) {
+      if (session && typeof session.destroy === 'function') {
+        try { session.destroy(); } catch {}
+      }
       console.warn('[AI:OnDevice] Native LanguageModel error:', err);
     }
   }
 
-  // 2. Legacy window.ai.languageModel
+  // 2. Legacy window.ai.languageModel (fresh session per call)
   if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
+    let legacySession = null;
     try {
-      if (!activeNanoSession) {
-        activeNanoSession = await window.ai.languageModel.create();
+      legacySession = await window.ai.languageModel.create();
+      const response = await legacySession.prompt(prompt);
+      if (legacySession && typeof legacySession.destroy === 'function') {
+        try { legacySession.destroy(); } catch {}
       }
-      const response = await activeNanoSession.prompt(prompt);
       const ms = Math.round(performance.now() - start);
       return { text: response.trim(), ms, backend: 'on-device-nano' };
     } catch (err) {
+      if (legacySession && typeof legacySession.destroy === 'function') {
+        try { legacySession.destroy(); } catch {}
+      }
       console.warn('[AI:OnDevice] Legacy window.ai error:', err);
     }
   }

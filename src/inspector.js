@@ -117,11 +117,11 @@ export class Inspector {
     const hasCloudStep = this.steps.some(s => s.where === 'cloud' || s.leftDevice);
 
     if (!hasCloudStep || this.route === 'A') {
-      return 'Pure on-device execution • Nothing left your device.';
+      return 'Pure on-device execution • Nothing was sent.';
     }
 
     if (this.hiddenValuesCount > 0) {
-      return `${this.hiddenValuesCount} values hidden in local memory • 0 sensitive values left your device.`;
+      return `${this.hiddenValuesCount} values redacted before sending • Cloud only sees redacted text.`;
     }
 
     return 'Public non-sensitive text • Direct cloud analysis.';

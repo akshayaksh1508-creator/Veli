@@ -23,6 +23,16 @@ describe('D1-T5: Regex Redaction Engine & Luhn Validation', () => {
     expect(redactedText).toBe('Pay [AMOUNT_1] and [AMOUNT_2]');
   });
 
+  it('detects spelled-out parenthesized amounts like (Three Lakh Seventy-Five Thousand Indian Rupees)', () => {
+    const text = 'Total sum of ₹3,75,000 (Three Lakh Seventy-Five Thousand Indian Rupees) payable in installments.';
+    const matches = detectRegex(text);
+    const { redactedText, map } = buildRedaction(text, matches);
+
+    expect(map.size).toBe(2);
+    expect(redactedText).toBe('Total sum of [AMOUNT_1] [AMOUNT_2] payable in installments.');
+    expect(map.get('[AMOUNT_2]')).toBe('(Three Lakh Seventy-Five Thousand Indian Rupees)');
+  });
+
   it('detects valid credit card numbers with Luhn check', () => {
     const text = 'Card is 4111 1111 1111 1111';
     const matches = detectRegex(text);

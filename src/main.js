@@ -9,6 +9,7 @@ import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
 import { route } from './router.js';
 import { showReviewStep } from './review.js';
 import { initRemoteConfig } from './firebase.js';
+import { buildLocalAnalysisPrompt } from './prompts.js';
 
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
@@ -118,6 +119,19 @@ function updateCharCount() {
 
 docInput?.addEventListener('input', updateCharCount);
 
+// Track exact string passed to cloud call for dynamic byte-for-byte verification
+let lastCloudPayloadSent = null;
+
+// Helper to detect non-responsive or broken model replies (Priority 1: Fix 2)
+function isBrokenReply(text) {
+  if (!text || typeof text !== 'string') return true;
+  const trimmed = text.trim();
+  if (trimmed.length < 20) return true;
+  if (/please provide/i.test(trimmed)) return true;
+  if (/as an ai/i.test(trimmed) && trimmed.length < 50) return true;
+  return false;
+}
+
 // Sample document buttons fill the textarea & toggle active state (D3-T2)
 document.querySelectorAll('.sample-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -128,19 +142,6 @@ document.querySelectorAll('.sample-btn').forEach(btn => {
     if (SAMPLES[key]) {
       docInput.value = SAMPLES[key].text;
       updateCharCount();
-
-      // Update bottom contextual callout based on sample
-      if (calloutText) {
-        if (key === 'SAMPLE_1') {
-          calloutText.textContent = 'Route A (On-Device): Short note under 1,500 chars. Analyzed 100% on Gemini Nano without cloud network calls.';
-        } else if (key === 'SAMPLE_2') {
-          calloutText.textContent = 'Route C (Hybrid): Full agreement with sensitive data. Redacted on-device, human-reviewed, then analyzed by Cloud AI.';
-        } else if (key === 'SAMPLE_3') {
-          calloutText.textContent = 'Route B (Direct Cloud): Long public technical article with zero PII. Sent directly to Cloud AI.';
-        } else {
-          calloutText.textContent = 'Edge cases: Luhn card validation, phone overlaps, and addresses.';
-        }
-      }
     }
   });
 });
@@ -150,6 +151,7 @@ function renderSideBySide() {
   const cloudContainer = document.getElementById('sidebyside-cloud');
   const userContainer = document.getElementById('sidebyside-user');
   const summaryLineText = document.getElementById('summary-line-text');
+  const verifiedFooter = document.getElementById('sidebyside-verified-footer');
 
   if (summaryLineText) {
     summaryLineText.textContent = inspector.getSummaryLine();
@@ -179,6 +181,18 @@ function renderSideBySide() {
     } else {
       userContainer.innerHTML = '<p class="text-muted">Awaiting analysis to view restored results.</p>';
     }
+  }
+
+  // Priority 1: Fix 7 — Dynamic byte-for-byte verification only shown on Route C when verified
+  if (verifiedFooter) {
+    const isRouteC = inspector.route === 'C';
+    const isVerified = Boolean(
+      isRouteC &&
+      inspector.cloudPayload &&
+      lastCloudPayloadSent &&
+      inspector.cloudPayload === lastCloudPayloadSent
+    );
+    verifiedFooter.style.display = isVerified ? 'flex' : 'none';
   }
 }
 
@@ -285,6 +299,7 @@ btnAnalyze?.addEventListener('click', async () => {
   btnAnalyze.querySelector('span').textContent = 'Evaluating...';
   if (completeBanner) completeBanner.style.display = 'none';
   inspector.reset();
+  lastCloudPayloadSent = null;
   renderInspector();
   resultBox.innerHTML = `
     <div class="loading-indicator">
@@ -307,6 +322,19 @@ btnAnalyze?.addEventListener('click', async () => {
     });
 
     console.log('[Router] Decision:', decision);
+
+    // Priority 1: Fix 3 — Build banner from router's real route and reason
+    if (calloutText) {
+      if (decision.route === 'A') {
+        calloutText.textContent = `Route A (On-Device): ${decision.reason}`;
+      } else if (decision.route === 'B') {
+        calloutText.textContent = `Route B (Direct Cloud): ${decision.reason}`;
+      } else if (decision.route === 'C') {
+        calloutText.textContent = `Route C (Hybrid): ${decision.reason}`;
+      } else if (decision.route === 'REJECT') {
+        calloutText.textContent = `Rejected: ${decision.reason}`;
+      }
+    }
 
     // Scenario 2 & 4: Hard Rejection (length cap or offline without Nano)
     if (decision.route === 'REJECT') {
@@ -347,8 +375,8 @@ btnAnalyze?.addEventListener('click', async () => {
     }
 
     // ROUTE A: Pure Local On-Device (Short or Offline)
+    // Priority 1: Fix 4 & 7 — Skip redundant redaction; send original text directly to Nano (saves 7-12s and avoids multi-turn bugs)
     if (decision.route === 'A') {
-      // Scenario 4: Offline long document warning notice
       if (decision.warning) {
         inspector.addStep({
           id: 'step_offline_warn',
@@ -359,80 +387,54 @@ btnAnalyze?.addEventListener('click', async () => {
         });
       }
 
-      const tRegex0 = performance.now();
-      const regexDur = performance.now() - tRegex0;
-
-      inspector.addStep({
-        id: 'step_regex',
-        label: `Pattern Scan (${regexMatches.length} regex matches)`,
-        where: 'local-code',
-        leftDevice: false,
-        durationMs: regexDur
-      });
-
-      // Scenario 7: Defensive Nano NER with warning note in Inspector
-      btnAnalyze.querySelector('span').textContent = 'Scanning on-device (Nano AI)...';
-      resultBox.innerHTML = `
-        <div class="loading-indicator">
-          <div class="spinner"></div>
-          <div>
-            <strong>Scanning with On-Device AI (Gemini Nano)</strong>
-            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Running local Named Entity Recognition on your hardware...</div>
-          </div>
-        </div>
-      `;
-
-      let nanoMatches = [];
-      let nanoWarning = null;
-      const tNer0 = performance.now();
-      const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
-      try {
-        nanoMatches = await nerRunner(text, {
-          onWarning: (w) => { nanoWarning = w; }
-        });
-      } catch (nerErr) {
-        nanoWarning = nerErr.message || 'On-device entity detection failed';
-        nanoMatches = [];
-      }
-      const nerDur = performance.now() - tNer0;
-
-      inspector.addStep({
-        id: 'step_nano_ner',
-        label: nanoWarning
-          ? `On-Device Entity Detection (Note: Model unparseable — falling back to regex-only)`
-          : `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
-        where: 'on-device',
-        leftDevice: false,
-        durationMs: nerDur
-      });
-
-      const tMerge0 = performance.now();
-      const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
-      const { redactedText, map } = buildRedaction(text, mergedMatches);
-      const mergeDur = performance.now() - tMerge0;
-
-      inspector.addStep({
-        id: 'step_redact',
-        label: `Merge & Redaction (${mergedMatches.length} matches, ${map.size} tokens)`,
-        where: 'local-code',
-        leftDevice: false,
-        durationMs: mergeDur
-      });
-
       btnAnalyze.querySelector('span').textContent = 'Analyzing locally (Nano AI)...';
       resultBox.innerHTML = `
         <div class="loading-indicator">
           <div class="spinner"></div>
           <div>
             <strong>Analyzing Document on Gemini Nano</strong>
-            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Route A: Processing 100% on-device. Zero data leaving device.</div>
+            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Route A: Pure on-device execution. Nothing leaves your device.</div>
           </div>
         </div>
       `;
 
+      const prompt = buildLocalAnalysisPrompt(text);
       const tNano0 = performance.now();
-      const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
-      const { text: modelAnswer, ms: nanoMs } = await runOnDevice(prompt);
+      let nanoResult = await runOnDevice(prompt);
+      const nanoMs = Math.round(performance.now() - tNano0);
+
+      // Priority 1: Fix 2 — Guard against broken replies (< 20 chars or "please provide") with single retry
+      if (isBrokenReply(nanoResult.text)) {
+        console.warn('[Route A] Nano returned incomplete response. Retrying once with fresh session...');
+        nanoResult = await runOnDevice(prompt);
+      }
+
+      if (isBrokenReply(nanoResult.text)) {
+        if (completeBanner) completeBanner.style.display = 'none';
+        inspector.addStep({
+          id: 'step_nano_incomplete',
+          label: 'On-Device Analysis Returned Incomplete Output',
+          where: 'on-device',
+          leftDevice: false,
+          durationMs: nanoMs
+        });
+        inspector.setRoute('A');
+        inspector.setHiddenCount(0);
+        inspector.setCloudPayload('');
+        inspector.setWhatYouSee('');
+
+        resultBox.innerHTML = `
+          <div class="result-error-card">
+            <div class="error-badge">On-Device Incomplete</div>
+            <h4>Unable to Complete On-Device Analysis</h4>
+            <div class="error-msg">${nanoResult.text || 'Gemini Nano returned an insufficient response.'}</div>
+            <div class="error-assurance">
+              🛡️ Zero data left your device. Try rephrasing or running online.
+            </div>
+          </div>
+        `;
+        return;
+      }
 
       inspector.addStep({
         id: 'step_nano',
@@ -442,32 +444,20 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: nanoMs
       });
 
-      const tRest0 = performance.now();
-      const validation = validatePlaceholders(modelAnswer, map);
-      const restoredAnswer = restore(modelAnswer, map);
-      const restDur = performance.now() - tRest0;
-
-      inspector.addStep({
-        id: 'step_restore',
-        label: `Local Restoration (${map.size} placeholders restored to real values)`,
-        where: 'local-code',
-        leftDevice: false,
-        durationMs: restDur
-      });
-
       inspector.setRoute('A');
-      inspector.setHiddenCount(map.size);
-      inspector.setWhatYouSee(restoredAnswer);
+      inspector.setHiddenCount(0);
+      inspector.setCloudPayload('');
+      inspector.setWhatYouSee(nanoResult.text);
 
       if (decision.warning) {
         resultBox.innerHTML = `
           <div class="result-offline-notice">
             <strong>⚡ Offline Notice:</strong> ${decision.warning}
           </div>
-          <div>${restoredAnswer}</div>
+          <div>${nanoResult.text}</div>
         `;
       } else {
-        resultBox.textContent = restoredAnswer;
+        resultBox.textContent = nanoResult.text;
       }
 
       if (completeBanner) completeBanner.style.display = 'flex';
@@ -489,8 +479,14 @@ btnAnalyze?.addEventListener('click', async () => {
 
       const tCloud0 = performance.now();
       const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
+      lastCloudPayloadSent = text;
       const cloudResult = await cloudRunner(text, new Map());
       const cloudDur = performance.now() - tCloud0;
+
+      if (isBrokenReply(cloudResult.text)) {
+        if (completeBanner) completeBanner.style.display = 'none';
+        throw new Error(`Cloud model returned broken response: "${cloudResult.text}"`);
+      }
 
       inspector.addStep({
         id: 'step_cloud',
@@ -601,8 +597,14 @@ btnAnalyze?.addEventListener('click', async () => {
       // Step 5: Cloud Analysis with verified token payload (Scenario 6: failure handled in catch)
       const tCloud0 = performance.now();
       const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
+      lastCloudPayloadSent = reviewed.redactedText;
       const cloudResult = await cloudRunner(reviewed.redactedText, reviewed.map);
       const cloudDur = performance.now() - tCloud0;
+
+      if (isBrokenReply(cloudResult.text)) {
+        if (completeBanner) completeBanner.style.display = 'none';
+        throw new Error(`Cloud model returned broken response: "${cloudResult.text}"`);
+      }
 
       inspector.addStep({
         id: 'step_cloud_c',

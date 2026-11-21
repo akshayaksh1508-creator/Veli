@@ -101,10 +101,10 @@ describe('D2-T7: Routing Inspector Model & Verification', () => {
     });
 
     const summaryLine = inspector.getSummaryLine();
-    expect(summaryLine).toBe('18 values hidden in local memory • 0 sensitive values left your device.');
+    expect(summaryLine).toBe('18 values redacted before sending • Cloud only sees redacted text.');
   });
 
-  it('for Route A, timeline shows no Cloud step and summary says "Nothing left your device."', () => {
+  it('for Route A, timeline shows no Cloud step and summary says "Nothing was sent."', () => {
     const inspector = new Inspector();
     inspector.setRoute('A');
     inspector.setHiddenCount(12);
@@ -130,6 +130,6 @@ describe('D2-T7: Routing Inspector Model & Verification', () => {
     expect(hasCloudStep).toBe(false);
 
     // Verify summary line for Route A
-    expect(inspector.getSummaryLine()).toBe('Pure on-device execution • Nothing left your device.');
+    expect(inspector.getSummaryLine()).toBe('Pure on-device execution • Nothing was sent.');
   });
 });

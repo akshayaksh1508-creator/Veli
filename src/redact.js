@@ -65,6 +65,7 @@ export function detectRegex(text) {
     { type: 'IFSC', regex: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g },
     { type: 'SSN', regex: /\b\d{3}-\d{2}-\d{4}\b/g },
     { type: 'AMOUNT', regex: /(?:₹|Rs\.?|INR|\$|€|£)\s?\d[\d,]*(?:\.\d+)?/g },
+    { type: 'AMOUNT', regex: /\((?:[A-Za-z\s-]+(?:Rupees|Dollars|Euros|Pounds|INR|USD|EUR))\)/gi },
     { type: 'URL', regex: /https?:\/\/[^\s]+/g }
   ];
 
