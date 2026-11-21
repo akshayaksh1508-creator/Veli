@@ -10,7 +10,7 @@ export const CONFIG = {
   CLOUD_RETRY: 1,     // retries if placeholders come back mangled
   // Switched from gemini-2.0-flash to gemini-3.8-flash per Google's Vertex AI / AI Logic API deprecation response.
   // Override without code changes via VITE_CLOUD_MODEL in .env.
-  CLOUD_MODEL_NAME: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CLOUD_MODEL) || 'gemini-3.8-flash',
+  CLOUD_MODEL_NAME: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CLOUD_MODEL) || 'gemini-3.5-flash-lite',
   // Display label only. It is NOT passed to the SDK as a model id (on-device mode uses Chrome's built-in model).
   LOCAL_MODEL_NAME: 'gemini-nano',
   // If true, runOnDevice may fall back to Chrome's LanguageModel API when the Firebase SDK on-device
