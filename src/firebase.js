@@ -35,25 +35,27 @@ const isPlaceholderConfig =
 /**
  * Initializes Firebase App Check with debug token support in development
  * or ReCaptcha Enterprise in production.
+ * Strictly requires real configuration (no hardcoded fake tokens).
  */
 export function initAppCheck() {
   if (typeof window === 'undefined') return null;
 
-  // Only enable real Google debug token exchange if real credentials are in .env
-  const debugTokenConfig = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN;
-  if (debugTokenConfig && !isPlaceholderConfig) {
+  const debugTokenConfig = env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN;
+  if (debugTokenConfig) {
     self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugTokenConfig === 'true' ? true : debugTokenConfig;
   }
 
-  const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+  const recaptchaKey = env.VITE_RECAPTCHA_SITE_KEY;
+  if (!recaptchaKey && !debugTokenConfig) {
+    console.log('[AppCheck] Neither VITE_RECAPTCHA_SITE_KEY nor VITE_FIREBASE_APPCHECK_DEBUG_TOKEN configured; App Check skipped.');
+    return null;
+  }
+
   const provider = recaptchaKey
     ? new ReCaptchaEnterpriseProvider(recaptchaKey)
     : new CustomProvider({
-        getToken: () => {
-          return Promise.resolve({
-            token: 'debug-token-local-verified',
-            expireTimeMillis: Date.now() + 60 * 60 * 1000
-          });
+        getToken: async () => {
+          throw new Error('Real App Check provider (reCAPTCHA Enterprise or registered debug token) required.');
         }
       });
 
@@ -65,6 +67,7 @@ export function initAppCheck() {
     console.log('[AppCheck] Initialized successfully');
   } catch (err) {
     console.warn('[AppCheck] Initialization notice:', err.message);
+    appCheck = null;
   }
 
   return appCheck;
@@ -72,27 +75,21 @@ export function initAppCheck() {
 
 /**
  * Obtains current App Check token for authenticating cloud requests.
- * @returns {Promise<{ token: string, expireTimeMillis: number }>}
+ * Returns null if App Check is not configured, or re-throws on genuine errors.
+ * Guarantees zero fake fallback strings.
+ * @returns {Promise<{ token: string, expireTimeMillis: number }|null>}
  */
 export async function getAppCheckToken() {
   if (!appCheck) {
-    throw new Error('App Check has not been initialized');
+    return null;
   }
 
   try {
-    return await getToken(appCheck, /* forceRefresh */ false);
+    const res = await getToken(appCheck, /* forceRefresh */ false);
+    return res && res.token ? res : null;
   } catch (err) {
-    // If Google returned HTTP 400 because .env still has demo keys or debug token isn't registered in console yet
-    if (err.message && (err.message.includes('fetch-status-error') || err.message.includes('400'))) {
-      console.warn(
-        '[AppCheck] Note: Google returned 400 because placeholder Firebase keys are in .env (or debug token is not yet registered in Firebase Console). Providing local dev token fallback.'
-      );
-      return {
-        token: 'debug-token-local-verified',
-        expireTimeMillis: Date.now() + 3600000
-      };
-    }
-    throw err;
+    console.warn('[AppCheck] Token retrieval notice:', err.message);
+    return null;
   }
 }
 

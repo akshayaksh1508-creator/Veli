@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { verifyZeroLeakage, analyzeWithCloud } from '../src/cloud-analysis.js';
+import { verifyZeroLeakage, analyzeWithCloud, computePayloadHash } from '../src/cloud-analysis.js';
 import { detectRegex, mergeMatches, buildRedaction } from '../src/redact.js';
 import { locateAllOccurrences } from '../src/nano-entities.js';
 import { SAMPLES } from '../src/samples.js';
@@ -142,6 +142,18 @@ describe('D2-T4: Cloud Analysis Prompt & Retry Logic', () => {
       const leakingText = 'Loan for Priya totaling [AMOUNT_1].';
 
       await expect(analyzeWithCloud(leakingText, map)).rejects.toThrow('PrivacyViolationError');
+    });
+
+    it('computes deterministic cryptographic payload hashes to verify byte-for-byte fidelity', async () => {
+      const payload = 'Confidential agreement for [PERSON_1] at [ORG_1].';
+      const hash1 = await computePayloadHash(payload);
+      const hash2 = await computePayloadHash(payload);
+      const hashDifferent = await computePayloadHash(payload + ' ');
+
+      expect(hash1).toBe(hash2);
+      expect(typeof hash1).toBe('string');
+      expect(hash1.length).toBeGreaterThan(5);
+      expect(hash1).not.toBe(hashDifferent);
     });
   });
 });

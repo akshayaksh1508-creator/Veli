@@ -8,6 +8,32 @@
 import { runCloud } from './ai.js';
 import { buildCloudAnalysisPrompt } from './prompts.js';
 import { validatePlaceholders } from './restore.js';
+import { CONFIG } from './config.js';
+
+/**
+ * Computes a deterministic SHA-256 (or cryptographic fallback) hash of a string
+ * to verify byte-for-byte exactness between dispatched payload and UI display.
+ * @param {string} str
+ * @returns {Promise<string>}
+ */
+export async function computePayloadHash(str) {
+  if (!str) return '';
+  if (typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined') {
+    try {
+      const buffer = new TextEncoder().encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch {}
+  }
+  // Fast 32-bit FNV-1a / Murmur-style hex hash for Node / test environments
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 'fnv_' + (hash >>> 0).toString(16);
+}
 
 /**
  * Asserts that none of the protected secrets in the placeholder map appear in the redacted text payload.
@@ -81,10 +107,13 @@ export async function analyzeWithCloud(redactedText, map, options = {}) {
   let attempt = 0;
   let lastResult = null;
   let validation = null;
+  const rawPayloadHash = await computePayloadHash(redactedText);
+  let lastPromptDispatched = null;
 
   while (attempt <= maxRetries) {
     const isRetry = attempt > 0;
     const prompt = buildCloudAnalysisPrompt(redactedText, isRetry);
+    lastPromptDispatched = prompt;
 
     if (typeof onStep === 'function') {
       onStep({ attempt, isRetry, prompt });
@@ -94,16 +123,22 @@ export async function analyzeWithCloud(redactedText, map, options = {}) {
     validation = validatePlaceholders(lastResult.text, map);
 
     if (validation.ok) {
+      const promptHash = await computePayloadHash(lastPromptDispatched);
       return {
         text: lastResult.text,
         ms: lastResult.ms,
-        model: lastResult.model || 'gemini-2.0-flash',
+        model: lastResult.model || CONFIG.CLOUD_MODEL_NAME,
         tokenCount: lastResult.tokenCount ?? null,
+        source: lastResult.source || 'firebase-sdk',
         backend: lastResult.backend,
         validation,
         retriesUsed: attempt,
         leakFree: true,
-        appCheckVerified: lastResult.appCheckVerified
+        appCheckVerified: lastResult.appCheckVerified,
+        appCheckToken: lastResult.appCheckToken || null,
+        payloadHash: rawPayloadHash,
+        promptHash,
+        promptDispatched: lastPromptDispatched
       };
     }
 
@@ -119,15 +154,21 @@ export async function analyzeWithCloud(redactedText, map, options = {}) {
     attempt++;
   }
 
+  const promptHash = await computePayloadHash(lastPromptDispatched);
   return {
     text: lastResult.text,
     ms: lastResult.ms,
-    model: lastResult.model || 'gemini-2.0-flash',
+    model: lastResult.model || CONFIG.CLOUD_MODEL_NAME,
     tokenCount: lastResult.tokenCount ?? null,
+    source: lastResult.source || 'firebase-sdk',
     backend: lastResult.backend,
     validation,
     retriesUsed: attempt - 1,
     leakFree: true,
-    appCheckVerified: lastResult.appCheckVerified
+    appCheckVerified: lastResult.appCheckVerified,
+    appCheckToken: lastResult.appCheckToken || null,
+    payloadHash: rawPayloadHash,
+    promptHash,
+    promptDispatched: lastPromptDispatched
   };
 }

@@ -5,15 +5,15 @@ import { restore, validatePlaceholders } from './restore.js';
 import { runOnDevice, runCloud, checkNanoCapabilities, isOnDeviceAvailable, prewarmNanoSession } from './ai.js';
 import { inspector } from './inspector.js';
 import { detectEntities, filterNanoEntities } from './nano-entities.js';
-import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
+import { analyzeWithCloud, verifyZeroLeakage, computePayloadHash } from './cloud-analysis.js';
 import { route } from './router.js';
 import { showReviewStep } from './review.js';
 import { initRemoteConfig } from './firebase.js';
 import { buildLocalAnalysisPrompt } from './prompts.js';
 import { renderSafeMarkdown } from './markdown.js';
 
-// Expose for DevTools testing & inspection
-if (typeof window !== 'undefined') {
+// Expose test helpers strictly in dev mode (zero production test hooks)
+if (typeof window !== 'undefined' && import.meta.env && import.meta.env.DEV) {
   window.detectEntities = detectEntities;
   window.verifyZeroLeakage = verifyZeroLeakage;
   window.route = route;
@@ -38,7 +38,7 @@ const dotNetwork = document.getElementById('dot-network');
 const calloutText = document.getElementById('callout-text');
 const completeBanner = document.getElementById('complete-banner');
 
-// Track physical network connectivity accurately across Windows virtual adapters
+// Track physical network connectivity accurately using standard browser events
 let isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
 // Check on-device status and network status on load
@@ -49,35 +49,18 @@ async function initStatus() {
     nanoBanner?.classList.add('hidden');
   });
 
-  async function checkRealConnectivity() {
+  // Zero background polling: purely reactive to browser online/offline events
+  function updateNetworkStatus() {
     if (!dotNetwork || !textNetwork) return;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      isDeviceOnline = false;
-      dotNetwork.className = 'status-dot';
-      textNetwork.textContent = 'Offline';
-      return;
-    }
-    try {
-      await fetch('https://www.google.com/generate_204', {
-        mode: 'no-cors',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(2000)
-      });
-      isDeviceOnline = true;
-      dotNetwork.className = 'status-dot active';
-      textNetwork.textContent = 'Online';
-    } catch {
-      isDeviceOnline = false;
-      dotNetwork.className = 'status-dot';
-      textNetwork.textContent = 'Offline';
-    }
+    const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    isDeviceOnline = online;
+    dotNetwork.className = online ? 'status-dot active' : 'status-dot';
+    textNetwork.textContent = online ? 'Online' : 'Offline';
   }
 
-  window.addEventListener('online', checkRealConnectivity);
-  window.addEventListener('offline', checkRealConnectivity);
-  checkRealConnectivity();
-  // Poll network status every 4 seconds to catch Wi-Fi drops despite Windows virtual adapters
-  setInterval(checkRealConnectivity, 4000);
+  window.addEventListener('online', updateNetworkStatus);
+  window.addEventListener('offline', updateNetworkStatus);
+  updateNetworkStatus();
 
   // Inspect Nano capabilities (Priority 2 Fix: green when ready, orange only for downloading/unavailable)
   const check = await checkNanoCapabilities();
@@ -125,8 +108,9 @@ function updateCharCount() {
 
 docInput?.addEventListener('input', updateCharCount);
 
-// Track exact string passed to cloud call for dynamic byte-for-byte verification
+// Track exact result and cryptographic hash passed to cloud call for verified byte-for-byte audit
 let lastCloudPayloadSent = null;
+let lastCloudAnalysisResult = null;
 
 // Helper to detect non-responsive or broken model replies (Priority 1: Fix 2)
 function isBrokenReply(text) {
@@ -185,16 +169,19 @@ function renderSideBySide() {
     }
   }
 
-  // Priority 1: Fix 7 — Dynamic byte-for-byte verification only shown on Route C when verified
+  // Priority 1: Fix 7 & Issue 3 — Cryptographic byte-for-byte verification between displayed payload and cloud dispatch
   if (verifiedFooter) {
     const isRouteC = inspector.route === 'C';
-    const isVerified = Boolean(
-      isRouteC &&
-      inspector.cloudPayload &&
-      lastCloudPayloadSent &&
-      inspector.cloudPayload === lastCloudPayloadSent
-    );
-    verifiedFooter.style.display = isVerified ? 'flex' : 'none';
+    if (isRouteC && inspector.cloudPayload && lastCloudAnalysisResult && lastCloudAnalysisResult.payloadHash) {
+      computePayloadHash(inspector.cloudPayload).then(displayedHash => {
+        const isMatch = (displayedHash === lastCloudAnalysisResult.payloadHash);
+        verifiedFooter.style.display = isMatch ? 'flex' : 'none';
+      }).catch(() => {
+        verifiedFooter.style.display = 'none';
+      });
+    } else {
+      verifiedFooter.style.display = 'none';
+    }
   }
 }
 
@@ -438,12 +425,17 @@ btnAnalyze?.addEventListener('click', async () => {
         return;
       }
 
+      const nanoSourceLabel = nanoResult.source === 'firebase-sdk'
+        ? 'Firebase AI Logic SDK'
+        : 'Chrome LanguageModel API';
+
       inspector.addStep({
         id: 'step_nano',
-        label: 'On-Device Document Analysis (Gemini Nano) [Route A: Local Only]',
+        label: `On-Device Document Analysis (${nanoSourceLabel}) [Route A: Local Only]`,
         where: 'on-device',
         leftDevice: false,
-        durationMs: nanoMs
+        durationMs: nanoMs,
+        source: nanoResult.source
       });
 
       inspector.setRoute('A');
@@ -482,6 +474,7 @@ btnAnalyze?.addEventListener('click', async () => {
       const tCloud0 = performance.now();
       lastCloudPayloadSent = text;
       const cloudResult = await analyzeWithCloud(text, new Map());
+      lastCloudAnalysisResult = cloudResult;
       const cloudDur = performance.now() - tCloud0;
 
       if (isBrokenReply(cloudResult.text)) {
@@ -495,8 +488,9 @@ btnAnalyze?.addEventListener('click', async () => {
         where: 'cloud',
         leftDevice: true,
         durationMs: cloudDur,
-        model: cloudResult.model || 'gemini-2.0-flash',
-        tokenCount: cloudResult.tokenCount
+        model: cloudResult.model || CONFIG.CLOUD_MODEL_NAME,
+        tokenCount: cloudResult.tokenCount,
+        source: cloudResult.source || 'firebase-sdk'
       });
 
       inspector.setRoute('B');
@@ -537,9 +531,8 @@ btnAnalyze?.addEventListener('click', async () => {
 
         let nanoWarning = null;
         const tNer0 = performance.now();
-        const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
         try {
-          nanoMatches = await nerRunner(text, {
+          nanoMatches = await detectEntities(text, {
             onWarning: (w) => { nanoWarning = w; }
           });
         } catch (nerErr) {
@@ -587,7 +580,7 @@ btnAnalyze?.addEventListener('click', async () => {
         <div class="loading-indicator">
           <div class="spinner"></div>
           <div>
-            <strong>Analyzing with Cloud AI (App Check Verified)</strong>
+            <strong>Analyzing with Cloud AI (Route C: Hybrid Cloud)</strong>
             <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Transmitting redacted payload with zero raw secrets...</div>
           </div>
         </div>
@@ -605,6 +598,7 @@ btnAnalyze?.addEventListener('click', async () => {
       const tCloud0 = performance.now();
       lastCloudPayloadSent = reviewed.redactedText;
       const cloudResult = await analyzeWithCloud(reviewed.redactedText, reviewed.map);
+      lastCloudAnalysisResult = cloudResult;
       const cloudDur = performance.now() - tCloud0;
 
       if (isBrokenReply(cloudResult.text)) {
@@ -612,14 +606,19 @@ btnAnalyze?.addEventListener('click', async () => {
         throw new Error(`Cloud model returned broken response: "${cloudResult.text}"`);
       }
 
+      const appCheckLabel = cloudResult.appCheckVerified
+        ? 'App Check: token obtained'
+        : 'App Check: unconfigured in dev';
+
       inspector.addStep({
         id: 'step_cloud_c',
-        label: `Cloud AI Analysis (${cloudResult.retriesUsed > 0 ? 'Retried, ' : ''}App Check Verified)`,
+        label: `Cloud AI Analysis (${cloudResult.retriesUsed > 0 ? 'Retried, ' : ''}${appCheckLabel})`,
         where: 'cloud',
         leftDevice: true,
         durationMs: cloudDur,
-        model: cloudResult.model || 'gemini-2.0-flash',
-        tokenCount: cloudResult.tokenCount
+        model: cloudResult.model || CONFIG.CLOUD_MODEL_NAME,
+        tokenCount: cloudResult.tokenCount,
+        source: cloudResult.source || 'firebase-sdk'
       });
 
       const tRest0 = performance.now();

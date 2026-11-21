@@ -27,24 +27,38 @@ describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
   });
 
   it('forces on-device-only execution via localModel and works offline', async () => {
-    const { text, ms, backend, tokenCount } = await runOnDevice('Say hello');
+    const { text, ms, backend, tokenCount, source } = await runOnDevice('Say hello');
 
     expect(localSpy).toHaveBeenCalledWith('Say hello');
     expect(cloudSpy).not.toHaveBeenCalled();
     expect(backend).toBe('on-device-nano');
+    expect(source).toBe('firebase-sdk');
     expect(text.toLowerCase()).toContain('hello');
     expect(ms).toBeGreaterThanOrEqual(0);
     expect(tokenCount).toBe(6);
   });
 
   it('forces cloud-only execution via cloudModel when online', async () => {
-    const { text, ms, backend, tokenCount } = await runCloud('Say hello');
+    const { text, ms, backend, tokenCount, source, model } = await runCloud('Say hello');
 
     expect(cloudSpy).toHaveBeenCalledWith('Say hello');
     expect(backend).toBe('cloud');
+    expect(source).toBe('firebase-sdk');
+    expect(model).toBe('gemini-2.0-flash');
     expect(text.toLowerCase()).toContain('hello');
     expect(ms).toBeGreaterThanOrEqual(0);
     expect(tokenCount).toBe(5);
+  });
+
+  it('fails cloud execution with EmptyResponseError if cloud model returns empty text', async () => {
+    cloudSpy.mockResolvedValueOnce({
+      response: Promise.resolve({
+        text: () => '   ',
+        usageMetadata: { totalTokenCount: 0 }
+      })
+    });
+
+    await expect(runCloud('Prompt returning empty')).rejects.toThrow('EmptyResponseError');
   });
 
   it('fails cloud-only execution with a NetworkError when offline', async () => {

@@ -9,19 +9,20 @@
 
 import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
 import { app, getAppCheckToken } from './firebase.js';
+import { CONFIG } from './config.js';
 
 // 1. Initialize Firebase AI Logic service instance
 export const ai = getAI(app, { backend: new GoogleAIBackend() });
 
 // 2. Create localModel pinned to on-device only (hybrid inference guide)
 export const localModel = getGenerativeModel(ai, {
-  model: 'gemini-nano',
+  model: CONFIG.LOCAL_MODEL_NAME,
   mode: 'only_on_device'
 });
 
 // 3. Create cloudModel pinned to cloud only (hybrid inference guide)
 export const cloudModel = getGenerativeModel(ai, {
-  model: 'gemini-2.0-flash',
+  model: CONFIG.CLOUD_MODEL_NAME,
   mode: 'only_in_cloud'
 });
 
@@ -172,7 +173,10 @@ async function executeIsolatedChromeLanguageModel(prompt, start) {
 
       const ms = Math.round(performance.now() - start);
       console.log(`[AI:OnDevice] Response received in ${ms}ms (${isCloned ? 'cloned session' : 'fresh session'}):\n`, response);
-      return { text: response.trim(), ms, backend: 'on-device-nano' };
+      if (!response || typeof response !== 'string' || !response.trim()) {
+        throw new Error('EmptyResponseError: On-device model returned an empty response.');
+      }
+      return { text: response.trim(), ms, source: 'chrome-direct', backend: 'on-device-nano' };
     } catch (err) {
       if (session && typeof session.destroy === 'function') {
         try { session.destroy(); } catch {}
@@ -191,7 +195,10 @@ async function executeIsolatedChromeLanguageModel(prompt, start) {
         try { legacySession.destroy(); } catch {}
       }
       const ms = Math.round(performance.now() - start);
-      return { text: response.trim(), ms, backend: 'on-device-nano' };
+      if (!response || typeof response !== 'string' || !response.trim()) {
+        throw new Error('EmptyResponseError: On-device model returned an empty response.');
+      }
+      return { text: response.trim(), ms, source: 'chrome-direct', backend: 'on-device-nano' };
     } catch (err) {
       if (legacySession && typeof legacySession.destroy === 'function') {
         try { legacySession.destroy(); } catch {}
@@ -222,10 +229,10 @@ export async function runOnDevice(prompt) {
       if (result && result.response) {
         const response = await result.response;
         const text = typeof response.text === 'function' ? response.text() : response.text;
-        if (text) {
+        if (text && typeof text === 'string' && text.trim()) {
           const ms = Math.round(performance.now() - start);
           const tokenCount = response.usageMetadata?.totalTokenCount || null;
-          return { text: text.trim(), ms, tokenCount, backend: 'on-device-nano' };
+          return { text: text.trim(), ms, tokenCount, source: 'firebase-sdk', backend: 'on-device-nano' };
         }
       }
     }
@@ -250,7 +257,7 @@ export async function runOnDevice(prompt) {
  * Zero fake fallbacks: returns real text, real latency, and token count.
  *
  * @param {string} prompt
- * @returns {Promise<{ text: string, ms: number, backend: 'cloud', tokenCount?: number|null, appCheckVerified: boolean }>}
+ * @returns {Promise<{ text: string, ms: number, backend: 'cloud', tokenCount?: number|null, appCheckVerified: boolean, appCheckToken?: string|null, model: string, source: 'firebase-sdk' }>}
  */
 export async function runCloud(prompt) {
   const start = performance.now();
@@ -263,11 +270,11 @@ export async function runCloud(prompt) {
     throw new Error('NetworkError: Cloud inference unavailable while offline. Check internet connection.');
   }
 
-  // Obtain App Check token for cloud authorization
-  let appCheckHeader = null;
+  // Obtain App Check token for cloud authorization (only real tokens, no fake fallback strings)
+  let appCheckToken = null;
   try {
-    const { token } = await getAppCheckToken();
-    appCheckHeader = token;
+    const tokenObj = await getAppCheckToken();
+    appCheckToken = tokenObj ? tokenObj.token : null;
   } catch (err) {
     console.warn('[AI:Cloud] App Check notice:', err.message);
   }
@@ -279,6 +286,12 @@ export async function runCloud(prompt) {
     const result = await cloudModel.generateContent(prompt);
     const response = await result.response;
     const text = typeof response.text === 'function' ? response.text() : response.text;
+
+    // Issue 7: Guard against empty or non-string response before trim
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      throw new Error('EmptyResponseError: Cloud model returned an empty response.');
+    }
+
     const ms = Math.round(performance.now() - start);
 
     const tokenCount = response.usageMetadata?.totalTokenCount 
@@ -289,9 +302,11 @@ export async function runCloud(prompt) {
       text: text.trim(),
       ms,
       tokenCount,
-      model: 'gemini-2.0-flash',
+      model: CONFIG.CLOUD_MODEL_NAME,
+      source: 'firebase-sdk',
       backend: 'cloud',
-      appCheckVerified: Boolean(appCheckHeader)
+      appCheckVerified: Boolean(appCheckToken),
+      appCheckToken: appCheckToken
     };
   } catch (err) {
     console.error('[AI:Cloud] Firebase AI Logic cloudModel error:', err);

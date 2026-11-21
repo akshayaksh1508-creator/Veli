@@ -4,6 +4,8 @@
  * Reference: Architecture.md section 5.7 & D2-T7
  */
 
+import { CONFIG } from './config.js';
+
 export class Inspector {
   constructor() {
     this.reset();
@@ -61,19 +63,28 @@ export class Inspector {
    * @param {string} [step.note] - Optional detail or warning message
    * @param {string} [step.model] - Model name (e.g. 'gemini-2.0-flash' or 'gemini-nano')
    * @param {number} [step.tokenCount] - Token count from model usage metadata
+   * @param {'firebase-sdk' | 'chrome-direct'} [step.source] - Runtime execution source
    */
-  addStep({ id, label, where, leftDevice, durationMs, payload, highlights, note, model, tokenCount }) {
+  addStep({ id, label, where, leftDevice, durationMs, payload, highlights, note, model, tokenCount, source }) {
     const payloadStr = payload !== undefined && payload !== null ? String(payload) : null;
     const computedHighlights = highlights || (payloadStr ? this.extractHighlights(payloadStr) : []);
 
     let formattedLabel = label;
     // Issue 10: Show model name and token count on the CLOUD row as real execution evidence
     if (where === 'cloud') {
-      const modelName = model || 'gemini-2.0-flash';
+      const modelName = model || CONFIG.CLOUD_MODEL_NAME;
       const tokenStr = (tokenCount !== null && tokenCount !== undefined) ? `${tokenCount} tokens` : null;
       const evidence = [modelName, tokenStr].filter(Boolean).join(' • ');
       if (evidence && !formattedLabel.includes(modelName)) {
         formattedLabel = `${formattedLabel} (${evidence})`;
+      }
+    }
+
+    // Issue 1: Honest attribution for On-Device execution source
+    if (where === 'on-device' && source) {
+      const sourceLabel = source === 'firebase-sdk' ? 'Firebase AI Logic SDK' : 'Chrome LanguageModel API';
+      if (!formattedLabel.includes(sourceLabel) && !formattedLabel.includes('Chrome') && !formattedLabel.includes('Firebase')) {
+        formattedLabel = `${formattedLabel} [${sourceLabel}]`;
       }
     }
 
@@ -87,8 +98,9 @@ export class Inspector {
       payload: payloadStr,
       highlights: computedHighlights,
       note: note || '',
-      model: model || (where === 'cloud' ? 'gemini-2.0-flash' : null),
-      tokenCount: tokenCount !== undefined ? tokenCount : null
+      model: model || (where === 'cloud' ? CONFIG.CLOUD_MODEL_NAME : (where === 'on-device' ? CONFIG.LOCAL_MODEL_NAME : null)),
+      tokenCount: tokenCount !== undefined ? tokenCount : null,
+      source: source || (where === 'cloud' ? 'firebase-sdk' : null)
     };
 
     this.steps.push(stepObj);
