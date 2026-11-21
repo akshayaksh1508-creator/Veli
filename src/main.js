@@ -5,12 +5,14 @@ import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
 import { detectEntities } from './nano-entities.js';
 import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
+import { route } from './router.js';
 
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
   window.detectEntities = detectEntities;
   window.analyzeWithCloud = analyzeWithCloud;
   window.verifyZeroLeakage = verifyZeroLeakage;
+  window.route = route;
 }
 
 // DOM Elements
