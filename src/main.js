@@ -8,6 +8,7 @@ import { detectEntities } from './nano-entities.js';
 import { analyzeWithCloud, verifyZeroLeakage } from './cloud-analysis.js';
 import { route } from './router.js';
 import { showReviewStep } from './review.js';
+import { initRemoteConfig } from './firebase.js';
 
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
@@ -16,6 +17,11 @@ if (typeof window !== 'undefined') {
   window.verifyZeroLeakage = verifyZeroLeakage;
   window.route = route;
   window.showReviewStep = showReviewStep;
+  window.CONFIG = CONFIG;
+  window.setShortLimit = (n) => {
+    CONFIG.SHORT_LIMIT = n;
+    console.log(`[Veil] SHORT_LIMIT updated to ${n} chars.`);
+  };
 }
 
 // DOM Elements
@@ -83,6 +89,9 @@ async function initStatus() {
     textNano.textContent = 'Nano: Local Fallback';
     nanoBanner?.classList.remove('hidden');
   }
+
+  // Initialize Firebase Remote Config (D3-T3)
+  await initRemoteConfig();
 }
 
 // Character counter update and button state control (Scenario 1 & 2)

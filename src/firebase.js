@@ -5,6 +5,12 @@ import {
   CustomProvider,
   getToken
 } from 'firebase/app-check';
+import {
+  getRemoteConfig,
+  fetchAndActivate,
+  getValue
+} from 'firebase/remote-config';
+import { CONFIG } from './config.js';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -85,5 +91,40 @@ export async function getAppCheckToken() {
       };
     }
     throw err;
+  }
+}
+
+let remoteConfigInstance = null;
+
+/**
+ * Initializes Firebase Remote Config with default fallback for SHORT_LIMIT.
+ * Reference: Architecture.md D3-T3
+ *
+ * @returns {Promise<{ activated: boolean, shortLimit: number }>}
+ */
+export async function initRemoteConfig() {
+  if (typeof window === 'undefined') {
+    return { activated: false, shortLimit: CONFIG.SHORT_LIMIT };
+  }
+
+  try {
+    remoteConfigInstance = getRemoteConfig(app);
+    remoteConfigInstance.settings.minimumFetchIntervalMillis = 60000;
+    remoteConfigInstance.defaultConfig = {
+      short_limit: CONFIG.SHORT_LIMIT
+    };
+
+    const activated = await fetchAndActivate(remoteConfigInstance);
+    const remoteLimit = getValue(remoteConfigInstance, 'short_limit').asNumber();
+
+    if (typeof remoteLimit === 'number' && !isNaN(remoteLimit) && remoteLimit > 0) {
+      CONFIG.SHORT_LIMIT = remoteLimit;
+      console.log(`[RemoteConfig] Synchronized SHORT_LIMIT = ${remoteLimit} chars`);
+    }
+
+    return { activated, shortLimit: CONFIG.SHORT_LIMIT };
+  } catch (err) {
+    console.warn('[RemoteConfig] Operating with default config fallback:', err.message);
+    return { activated: false, shortLimit: CONFIG.SHORT_LIMIT };
   }
 }
