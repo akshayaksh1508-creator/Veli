@@ -7,6 +7,7 @@ describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
   let cloudSpy;
 
   beforeEach(() => {
+    CONFIG.ALLOW_SDK_ON_DEVICE = true;
     localSpy = vi.spyOn(localModel, 'generateContent').mockResolvedValue({
       response: Promise.resolve({
         text: () => 'Hello from local on-device model',
@@ -25,6 +26,7 @@ describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
   afterEach(() => {
     localSpy?.mockRestore();
     cloudSpy?.mockRestore();
+    CONFIG.ALLOW_SDK_ON_DEVICE = false;
   });
 
   it('forces on-device-only execution via localModel and works offline', async () => {

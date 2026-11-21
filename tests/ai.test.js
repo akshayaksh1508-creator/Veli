@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runOnDevice, checkNanoCapabilities, localModel } from '../src/ai.js';
+import { CONFIG } from '../src/config.js';
 
 describe('D1-T3: On-Device Gemini Nano Verification', () => {
   let generateContentSpy;
 
   beforeEach(() => {
+    CONFIG.ALLOW_SDK_ON_DEVICE = true;
     generateContentSpy = vi.spyOn(localModel, 'generateContent').mockResolvedValue({
       response: Promise.resolve({
         text: () => 'OK',
@@ -15,6 +17,7 @@ describe('D1-T3: On-Device Gemini Nano Verification', () => {
 
   afterEach(() => {
     generateContentSpy?.mockRestore();
+    CONFIG.ALLOW_SDK_ON_DEVICE = false;
   });
 
   it('detects browser capabilities accurately', async () => {

@@ -6,11 +6,25 @@ describe('On-device source attribution (Firebase SDK vs Chrome direct)', () => {
   let spy;
   beforeEach(() => {
     CONFIG.ALLOW_CHROME_DIRECT_FALLBACK = true;
+    CONFIG.ALLOW_SDK_ON_DEVICE = true;   // individual tests exercise the SDK path
   });
   afterEach(() => {
     spy?.mockRestore();
     vi.unstubAllGlobals();
     CONFIG.ALLOW_CHROME_DIRECT_FALLBACK = true;
+    CONFIG.ALLOW_SDK_ON_DEVICE = false;  // production default
+  });
+
+  it('PRIVACY: with the SDK path disabled (default) the SDK model is never called with the prompt', async () => {
+    CONFIG.ALLOW_SDK_ON_DEVICE = false;
+    spy = vi.spyOn(localModel, 'generateContent');
+    vi.stubGlobal('LanguageModel', {
+      create: async () => ({ prompt: async () => 'Chrome answer', destroy() {} })
+    });
+    const out = await runOnDevice('SENSITIVE: account 5021-8834-2210');
+    expect(spy).not.toHaveBeenCalled();
+    expect(out.source).toBe('chrome-direct');
+    expect(out.sdkFallbackReason).toContain('disabled');
   });
 
   it('reports source "firebase-sdk" when the SDK on-device model answers', async () => {

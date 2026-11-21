@@ -15,5 +15,10 @@ export const CONFIG = {
   LOCAL_MODEL_NAME: 'gemini-nano',
   // If true, runOnDevice may fall back to Chrome's LanguageModel API when the Firebase SDK on-device
   // path fails. The fallback is always labeled in the Inspector. Set false to require the SDK path.
-  ALLOW_CHROME_DIRECT_FALLBACK: true
+  ALLOW_CHROME_DIRECT_FALLBACK: true,
+  // PRIVACY GUARD. The Firebase SDK on-device path was observed sending the prompt to
+  // https://firebasevertexai.googleapis.com/.../models/gemini-nano:generateContent (HTTP 404),
+  // i.e. the "on-device" call went to the network. Keep this false until DevTools > Network shows
+  // ZERO requests during Route A and during Route C entity detection with Wi-Fi on.
+  ALLOW_SDK_ON_DEVICE: false
 };

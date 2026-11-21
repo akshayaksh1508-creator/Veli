@@ -249,9 +249,12 @@ export async function runOnDevice(prompt) {
 
   let sdkFailure = null;
 
-  // 1. Route through Firebase AI Logic SDK localModel (pinned to on-device only)
+  // 1. Route through Firebase AI Logic SDK localModel (pinned to on-device only).
+  //    Disabled by default: this path has been observed making a cloud request with the raw prompt.
   try {
-    if (localModel && typeof localModel.generateContent === 'function') {
+    if (!CONFIG.ALLOW_SDK_ON_DEVICE) {
+      sdkFailure = 'SDK on-device path disabled (CONFIG.ALLOW_SDK_ON_DEVICE=false) because it was seen sending requests to the cloud endpoint; not verified as fully local yet';
+    } else if (localModel && typeof localModel.generateContent === 'function') {
       const result = await localModel.generateContent(prompt);
       if (result && result.response) {
         const response = await result.response;
@@ -263,10 +266,10 @@ export async function runOnDevice(prompt) {
         }
       }
     }
-    if (!localModel) {
-      sdkFailure = sdkStatus.initError || 'localModel was not created';
-    } else {
-      sdkFailure = 'Firebase SDK on-device model returned no text';
+    if (!sdkFailure) {
+      sdkFailure = !localModel
+        ? (sdkStatus.initError || 'localModel was not created')
+        : 'Firebase SDK on-device model returned no text';
     }
   } catch (sdkErr) {
     sdkFailure = sdkErr?.message || String(sdkErr);
