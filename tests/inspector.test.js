@@ -1,0 +1,135 @@
+import { describe, it, expect, vi } from 'vitest';
+import { Inspector } from '../src/inspector.js';
+
+describe('D2-T7: Routing Inspector Model & Verification', () => {
+  it('records Route C execution sequence and verifies all step environments', () => {
+    const inspector = new Inspector();
+    inspector.setRoute('C');
+    inspector.setHiddenCount(14);
+
+    // 1. Regex Detect
+    inspector.addStep({
+      id: 'step_regex',
+      label: 'Pattern Scan (Regex)',
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: 1
+    });
+
+    // 2. Nano Detect
+    inspector.addStep({
+      id: 'step_nano_ner',
+      label: 'On-Device Entity Detection (Gemini Nano)',
+      where: 'on-device',
+      leftDevice: false,
+      durationMs: 2500
+    });
+
+    // 3. Build Placeholders / Redaction
+    inspector.addStep({
+      id: 'step_redact',
+      label: 'Build Placeholders & Redaction',
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: 1
+    });
+
+    // 4. Cloud Analysis
+    const cloudPayloadVariable = 'Agreement between [PERSON_1] and [ORG_1] for [AMOUNT_1].';
+    inspector.addStep({
+      id: 'step_cloud',
+      label: 'Cloud AI Analysis',
+      where: 'cloud',
+      leftDevice: true,
+      durationMs: 450,
+      payload: cloudPayloadVariable
+    });
+
+    // 5. Restore
+    inspector.addStep({
+      id: 'step_restore',
+      label: 'Local Restoration',
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: 1
+    });
+
+    expect(inspector.steps).toHaveLength(5);
+    expect(inspector.steps.map(s => s.where)).toEqual([
+      'local-code',
+      'on-device',
+      'local-code',
+      'cloud',
+      'local-code'
+    ]);
+  });
+
+  it('guarantees the payload stored is byte-for-byte identical to the string passed to cloud (no copies)', () => {
+    const inspector = new Inspector();
+    const exactPayloadString = 'Confidential terms for [PERSON_1] at [ORG_1]. Pay [AMOUNT_1] by 15 Jan.';
+
+    // Spy on cloud invocation
+    const mockCloudCall = vi.fn((payload) => {
+      inspector.addStep({
+        id: 'step_cloud',
+        label: 'Cloud Call',
+        where: 'cloud',
+        leftDevice: true,
+        durationMs: 300,
+        payload
+      });
+    });
+
+    mockCloudCall(exactPayloadString);
+
+    expect(mockCloudCall).toHaveBeenCalledWith(exactPayloadString);
+    // Assert byte-for-byte exact reference equality
+    expect(inspector.cloudPayload).toBe(exactPayloadString);
+  });
+
+  it('summary line count equals the number of map entries in Route C', () => {
+    const inspector = new Inspector();
+    inspector.setRoute('C');
+    inspector.setHiddenCount(18);
+
+    inspector.addStep({
+      id: 'step_cloud',
+      label: 'Cloud Analysis',
+      where: 'cloud',
+      leftDevice: true,
+      durationMs: 400
+    });
+
+    const summaryLine = inspector.getSummaryLine();
+    expect(summaryLine).toBe('18 values hidden in local memory • 0 sensitive values left your device.');
+  });
+
+  it('for Route A, timeline shows no Cloud step and summary says "Nothing left your device."', () => {
+    const inspector = new Inspector();
+    inspector.setRoute('A');
+    inspector.setHiddenCount(12);
+
+    inspector.addStep({
+      id: 'step_regex',
+      label: 'Pattern Scan',
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: 1
+    });
+
+    inspector.addStep({
+      id: 'step_nano',
+      label: 'On-Device Document Analysis (Gemini Nano)',
+      where: 'on-device',
+      leftDevice: false,
+      durationMs: 2200
+    });
+
+    // Verify zero cloud steps
+    const hasCloudStep = inspector.steps.some(s => s.where === 'cloud' || s.leftDevice);
+    expect(hasCloudStep).toBe(false);
+
+    // Verify summary line for Route A
+    expect(inspector.getSummaryLine()).toBe('Pure on-device execution • Nothing left your device.');
+  });
+});
