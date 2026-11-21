@@ -356,7 +356,8 @@ btnAnalyze?.addEventListener('click', async () => {
       // Scenario 7: Defensive Nano NER with warning note in Inspector
       let nanoWarning = null;
       const tNer0 = performance.now();
-      const nanoMatches = await detectEntities(text, {
+      const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
+      const nanoMatches = await nerRunner(text, {
         onWarning: (w) => { nanoWarning = w; }
       });
       const nerDur = performance.now() - tNer0;
@@ -431,7 +432,8 @@ btnAnalyze?.addEventListener('click', async () => {
     // ROUTE B: Public Non-Sensitive Document (Direct Cloud)
     if (decision.route === 'B') {
       const tCloud0 = performance.now();
-      const cloudResult = await analyzeWithCloud(text, new Map());
+      const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
+      const cloudResult = await cloudRunner(text, new Map());
       const cloudDur = performance.now() - tCloud0;
 
       inspector.addStep({
@@ -469,7 +471,8 @@ btnAnalyze?.addEventListener('click', async () => {
       if (onDevice) {
         let nanoWarning = null;
         const tNer0 = performance.now();
-        nanoMatches = await detectEntities(text, {
+        const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
+        nanoMatches = await nerRunner(text, {
           onWarning: (w) => { nanoWarning = w; }
         });
         const nerDur = performance.now() - tNer0;
@@ -516,7 +519,8 @@ btnAnalyze?.addEventListener('click', async () => {
 
       // Step 5: Cloud Analysis with verified token payload (Scenario 6: failure handled in catch)
       const tCloud0 = performance.now();
-      const cloudResult = await analyzeWithCloud(reviewed.redactedText, reviewed.map);
+      const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
+      const cloudResult = await cloudRunner(reviewed.redactedText, reviewed.map);
       const cloudDur = performance.now() - tCloud0;
 
       inspector.addStep({
