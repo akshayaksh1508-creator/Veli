@@ -1,4 +1,5 @@
 import { SAMPLES } from './samples.js';
+import { CONFIG } from './config.js';
 import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
 import { restore, validatePlaceholders } from './restore.js';
 import { runOnDevice, runCloud, checkNanoCapabilities, isOnDeviceAvailable } from './ai.js';
@@ -30,11 +31,21 @@ const dotNetwork = document.getElementById('dot-network');
 const calloutText = document.getElementById('callout-text');
 const completeBanner = document.getElementById('complete-banner');
 
+// Track physical network connectivity accurately across Windows virtual adapters
+let isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
 // Check on-device status and network status on load
 async function initStatus() {
+  const nanoBanner = document.getElementById('nano-unavailable-banner');
+  const btnDismissBanner = document.getElementById('btn-dismiss-banner');
+  btnDismissBanner?.addEventListener('click', () => {
+    nanoBanner?.classList.add('hidden');
+  });
+
   async function checkRealConnectivity() {
     if (!dotNetwork || !textNetwork) return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      isDeviceOnline = false;
       dotNetwork.className = 'status-dot';
       textNetwork.textContent = 'Offline';
       return;
@@ -45,9 +56,11 @@ async function initStatus() {
         cache: 'no-store',
         signal: AbortSignal.timeout(2000)
       });
+      isDeviceOnline = true;
       dotNetwork.className = 'status-dot active';
       textNetwork.textContent = 'Online';
     } catch {
+      isDeviceOnline = false;
       dotNetwork.className = 'status-dot';
       textNetwork.textContent = 'Offline';
     }
@@ -59,21 +72,39 @@ async function initStatus() {
   // Poll network status every 4 seconds to catch Wi-Fi drops despite Windows virtual adapters
   setInterval(checkRealConnectivity, 4000);
 
-  // Inspect Nano capabilities
+  // Inspect Nano capabilities (Scenario 5: Nano unavailable banner)
   const check = await checkNanoCapabilities();
   if (check.available) {
     dotNano.className = 'status-dot nano';
     textNano.textContent = 'Nano: Ready';
+    nanoBanner?.classList.add('hidden');
   } else {
     dotNano.className = 'status-dot';
     textNano.textContent = 'Nano: Local Fallback';
+    nanoBanner?.classList.remove('hidden');
   }
 }
 
-// Character counter update
+// Character counter update and button state control (Scenario 1 & 2)
 function updateCharCount() {
+  if (!docInput) return;
   const len = docInput.value.length;
-  charCounter.textContent = `${len.toLocaleString()} chars`;
+  const trimmedLen = docInput.value.trim().length;
+
+  if (charCounter) {
+    if (len > CONFIG.MAX_CHARS) {
+      charCounter.classList.add('char-counter-over');
+      charCounter.textContent = `${len.toLocaleString()} / ${CONFIG.MAX_CHARS.toLocaleString()} chars (exceeds cap)`;
+    } else {
+      charCounter.classList.remove('char-counter-over');
+      charCounter.textContent = `${len.toLocaleString()} chars`;
+    }
+  }
+
+  // Auto-disable Analyze button if document input is empty (Scenario 1)
+  if (!isAnalyzing && btnAnalyze) {
+    btnAnalyze.disabled = (trimmedLen === 0);
+  }
 }
 
 docInput?.addEventListener('input', updateCharCount);
@@ -213,17 +244,37 @@ function renderInspector() {
   inspectorPanel.appendChild(container);
 }
 
+// Re-entrancy guard to prevent rapid double-clicks (Scenario 8)
+let isAnalyzing = false;
+
 // Analyze button handler
 btnAnalyze?.addEventListener('click', async () => {
-  const text = docInput.value.trim();
-  if (!text) {
-    alert('Please enter or select a document to analyze.');
+  // Scenario 8: Guard against duplicate concurrent execution
+  if (isAnalyzing) {
+    console.warn('[Veil] Analysis currently running. Duplicate click ignored.');
     return;
   }
 
-  // Disable button while running
+  const text = docInput ? docInput.value.trim() : '';
+
+  // Scenario 1: Friendly empty input handling (no blocking alert popup)
+  if (!text) {
+    resultBox.innerHTML = `
+      <div class="result-prompt">
+        <div class="prompt-icon">ℹ️</div>
+        <div>
+          <strong>No Document Entered</strong>
+          <p>Please type or paste a document into the input field above before analyzing.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  isAnalyzing = true;
   btnAnalyze.disabled = true;
   btnAnalyze.querySelector('span').textContent = 'Analyzing...';
+  if (completeBanner) completeBanner.style.display = 'none';
   inspector.reset();
   renderInspector();
   resultBox.textContent = 'Evaluating routing and document privacy...';
@@ -235,19 +286,62 @@ btnAnalyze?.addEventListener('click', async () => {
       length: text.length,
       sensitiveFound: regexMatches.length > 0,
       onDeviceAvailable: onDevice,
-      online: typeof navigator !== 'undefined' ? navigator.onLine : true
+      online: isDeviceOnline
     });
 
     console.log('[Router] Decision:', decision);
 
-    // 0. Hard Reject Case
+    // Scenario 2 & 4: Hard Rejection (length cap or offline without Nano)
     if (decision.route === 'REJECT') {
-      resultBox.innerHTML = `<strong>Request Rejected:</strong> ${decision.reason}`;
+      inspector.addStep({
+        id: 'step_reject',
+        label: `Rejected: ${decision.reason}`,
+        where: 'local-code',
+        leftDevice: false,
+        durationMs: 0
+      });
+      renderInspector();
+
+      resultBox.innerHTML = `
+        <div class="result-rejection-card">
+          <div class="card-badge-reject">Processing Blocked</div>
+          <h4>Request Cannot Be Completed</h4>
+          <p>${decision.reason}</p>
+          <p class="rejection-hint">${text.length > CONFIG.MAX_CHARS ? 'Please shorten or split your document to under 12,000 characters.' : 'Connect to the internet or open in Chrome with on-device Gemini Nano enabled.'}</p>
+        </div>
+      `;
       return;
+    }
+
+    // Scenario 5: Nano unavailable with sensitive document -> Confirmation prompt
+    if (decision.route === 'C' && !onDevice) {
+      const proceed = window.confirm(
+        'On-device Gemini Nano is not available in this browser.\n\n' +
+        'Veil will redact structured patterns (payment cards, phones, emails, amounts, PAN, Aadhaar) using local regex patterns.\n\n' +
+        'Unstructured names and addresses cannot be detected automatically by AI.\n\n' +
+        'You will be able to review all redactions and manually hide names in the next step.\n\n' +
+        'Do you wish to proceed with pattern-only redaction?'
+      );
+
+      if (!proceed) {
+        resultBox.innerHTML = '<strong>Analysis Cancelled:</strong> Operation cancelled by user. Zero data left your device.';
+        return;
+      }
     }
 
     // ROUTE A: Pure Local On-Device (Short or Offline)
     if (decision.route === 'A') {
+      // Scenario 4: Offline long document warning notice
+      if (decision.warning) {
+        inspector.addStep({
+          id: 'step_offline_warn',
+          label: `Offline Notice: ${decision.warning}`,
+          where: 'on-device',
+          leftDevice: false,
+          durationMs: 0
+        });
+      }
+
       const tRegex0 = performance.now();
       const regexDur = performance.now() - tRegex0;
 
@@ -259,13 +353,19 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: regexDur
       });
 
+      // Scenario 7: Defensive Nano NER with warning note in Inspector
+      let nanoWarning = null;
       const tNer0 = performance.now();
-      const nanoMatches = await detectEntities(text);
+      const nanoMatches = await detectEntities(text, {
+        onWarning: (w) => { nanoWarning = w; }
+      });
       const nerDur = performance.now() - tNer0;
 
       inspector.addStep({
         id: 'step_nano_ner',
-        label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+        label: nanoWarning
+          ? `On-Device Entity Detection (Note: Model unparseable — falling back to regex-only)`
+          : `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
         where: 'on-device',
         leftDevice: false,
         durationMs: nerDur
@@ -313,7 +413,18 @@ btnAnalyze?.addEventListener('click', async () => {
       inspector.setHiddenCount(map.size);
       inspector.setWhatYouSee(restoredAnswer);
 
-      resultBox.textContent = restoredAnswer;
+      if (decision.warning) {
+        resultBox.innerHTML = `
+          <div class="result-offline-notice">
+            <strong>⚡ Offline Notice:</strong> ${decision.warning}
+          </div>
+          <div>${restoredAnswer}</div>
+        `;
+      } else {
+        resultBox.textContent = restoredAnswer;
+      }
+
+      if (completeBanner) completeBanner.style.display = 'flex';
       return;
     }
 
@@ -337,12 +448,12 @@ btnAnalyze?.addEventListener('click', async () => {
       inspector.setWhatYouSee(cloudResult.text);
 
       resultBox.textContent = cloudResult.text;
+      if (completeBanner) completeBanner.style.display = 'flex';
       return;
     }
 
     // ROUTE C: Sensitive Hybrid (Redact On-Device, Interactive Review, Send to Cloud)
     if (decision.route === 'C') {
-      // Step 1: Regex Scan
       const tRegex0 = performance.now();
       const regexDur = performance.now() - tRegex0;
 
@@ -354,27 +465,37 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: regexDur
       });
 
-      // Step 2: On-Device Entity Detection (if Nano available)
       let nanoMatches = [];
       if (onDevice) {
+        let nanoWarning = null;
         const tNer0 = performance.now();
-        nanoMatches = await detectEntities(text);
+        nanoMatches = await detectEntities(text, {
+          onWarning: (w) => { nanoWarning = w; }
+        });
         const nerDur = performance.now() - tNer0;
 
         inspector.addStep({
           id: 'step_nano_ner',
-          label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+          label: nanoWarning
+            ? `On-Device Entity Detection (Note: Model unparseable — falling back to regex-only)`
+            : `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
           where: 'on-device',
           leftDevice: false,
           durationMs: nerDur
         });
+      } else {
+        inspector.addStep({
+          id: 'step_nano_ner_skip',
+          label: 'On-Device Entity Detection Skipped (Nano unavailable — regex-only fallback)',
+          where: 'local-code',
+          leftDevice: false,
+          durationMs: 0
+        });
       }
 
-      // Step 3: Merge Matches
       const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
       renderInspector();
 
-      // Step 4: Interactive Review-Before-Sending Modal (Human in the Loop)
       btnAnalyze.querySelector('span').textContent = 'Awaiting User Review...';
       const reviewed = await showReviewStep(text, mergedMatches);
 
@@ -393,7 +514,7 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: 1
       });
 
-      // Step 5: Cloud Analysis with verified token payload
+      // Step 5: Cloud Analysis with verified token payload (Scenario 6: failure handled in catch)
       const tCloud0 = performance.now();
       const cloudResult = await analyzeWithCloud(reviewed.redactedText, reviewed.map);
       const cloudDur = performance.now() - tCloud0;
@@ -406,7 +527,6 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: cloudDur
       });
 
-      // Step 6: Local Restoration
       const tRest0 = performance.now();
       const validation = validatePlaceholders(cloudResult.text, reviewed.map);
       const restoredAnswer = restore(cloudResult.text, reviewed.map);
@@ -435,12 +555,34 @@ btnAnalyze?.addEventListener('click', async () => {
       console.groupEnd();
 
       resultBox.textContent = restoredAnswer;
+      if (completeBanner) completeBanner.style.display = 'flex';
     }
   } catch (err) {
-    resultBox.textContent = `Error during analysis: ${err.message}`;
+    // Scenario 6: Failure handling — Error displayed, NO partial result presented as complete
+    console.error('[Veil Analysis Failure]', err);
+    inspector.addStep({
+      id: 'step_error',
+      label: `Analysis Failure: ${err.message}`,
+      where: 'cloud',
+      leftDevice: true,
+      durationMs: 0
+    });
+    inspector.setWhatYouSee('');
+    if (completeBanner) completeBanner.style.display = 'none';
+
+    resultBox.innerHTML = `
+      <div class="result-error-card">
+        <div class="error-badge">Analysis Failed</div>
+        <h4>Unable to Complete Analysis</h4>
+        <div class="error-msg">${err.message}</div>
+        <div class="error-assurance">
+          🛡️ <strong>Zero Data Compromise:</strong> All secrets remained strictly protected on-device. No partial or unverified result is accepted.
+        </div>
+      </div>
+    `;
   } finally {
-    // Re-enable Analyze button
-    btnAnalyze.disabled = false;
+    isAnalyzing = false;
+    updateCharCount();
     btnAnalyze.querySelector('span').innerHTML = 'Analyze Document &rarr;';
     renderInspector();
   }

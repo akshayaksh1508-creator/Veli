@@ -27,6 +27,21 @@
       </div>
     </header>
 
+    <!-- On-Device AI Unavailable Warning Banner (D3-T1) -->
+    <div id="nano-unavailable-banner" class="banner-notice hidden">
+      <div class="banner-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <div class="banner-text">
+        <strong>On-Device Gemini Nano is unavailable in this browser:</strong> Veil will operate in <strong>Regex-Only Pattern Redaction</strong> mode. Structured identifiers (payment cards, phones, emails, amounts, PAN, Aadhaar) will be protected, and you can manually hide names.
+      </div>
+      <button id="btn-dismiss-banner" class="banner-close" aria-label="Dismiss banner">&times;</button>
+    </div>
+
     <!-- Main Two-Column Workspace -->
     <main class="main-grid">
       <!-- Left Panel: Document Input -->
@@ -64,7 +79,7 @@
           </div>
 
           <div class="input-footer">
-            <button id="btn-analyze" class="btn-primary">
+            <button id="btn-analyze" class="btn-primary" disabled>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <line x1="18" y1="20" x2="18" y2="10"></line>
                 <line x1="12" y1="20" x2="12" y2="4"></line>
