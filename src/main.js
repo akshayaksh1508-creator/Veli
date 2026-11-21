@@ -1,8 +1,14 @@
 import { SAMPLES } from './samples.js';
-import { detectRegex, buildRedaction } from './redact.js';
-import { restore } from './restore.js';
+import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
+import { restore, validatePlaceholders } from './restore.js';
 import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
+import { detectEntities } from './nano-entities.js';
+
+// Expose for DevTools testing & inspection
+if (typeof window !== 'undefined') {
+  window.detectEntities = detectEntities;
+}
 
 // DOM Elements
 const docInput = document.getElementById('doc-input');
@@ -159,19 +165,45 @@ btnAnalyze?.addEventListener('click', async () => {
   try {
     // 1. Regex Redaction Step
     const tRegex0 = performance.now();
-    const matches = detectRegex(text);
-    const { redactedText, map } = buildRedaction(text, matches);
+    const regexMatches = detectRegex(text);
     const regexDur = performance.now() - tRegex0;
 
     inspector.addStep({
-      id: 'step_redact',
-      label: `Pattern Scan & Redaction (${matches.length} matches, ${map.size} tokens)`,
+      id: 'step_regex',
+      label: `Pattern Scan (${regexMatches.length} regex matches)`,
       where: 'local-code',
       leftDevice: false,
       durationMs: regexDur
     });
 
-    // 2. On-Device Model Step
+    // 2. On-Device Entity Detection Step (Gemini Nano NER)
+    const tNer0 = performance.now();
+    const nanoMatches = await detectEntities(text);
+    const nerDur = performance.now() - tNer0;
+
+    inspector.addStep({
+      id: 'step_nano_ner',
+      label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+      where: 'on-device',
+      leftDevice: false,
+      durationMs: nerDur
+    });
+
+    // 3. Merge & Redaction Step
+    const tMerge0 = performance.now();
+    const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
+    const { redactedText, map } = buildRedaction(text, mergedMatches);
+    const mergeDur = performance.now() - tMerge0;
+
+    inspector.addStep({
+      id: 'step_redact',
+      label: `Merge & Redaction (${mergedMatches.length} matches, ${map.size} tokens)`,
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: mergeDur
+    });
+
+    // 4. On-Device Model Step
     const tNano0 = performance.now();
     const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
     const { text: modelAnswer, ms: nanoMs } = await runOnDevice(prompt);
@@ -184,14 +216,20 @@ btnAnalyze?.addEventListener('click', async () => {
       durationMs: nanoMs
     });
 
-    // 3. Local Restoration Step
+    // 5. Local Restoration Step
     const tRest0 = performance.now();
+    const validation = validatePlaceholders(modelAnswer, map);
     const restoredAnswer = restore(modelAnswer, map);
     const restDur = performance.now() - tRest0;
 
+    let restorationLabel = `Local Restoration (${map.size} placeholders restored to real values)`;
+    if (!validation.ok) {
+      restorationLabel += ` — [Notice: ${validation.unknown.length} unknown token(s)]`;
+    }
+
     inspector.addStep({
       id: 'step_restore',
-      label: `Local Restoration (${map.size} placeholders restored to real values)`,
+      label: restorationLabel,
       where: 'local-code',
       leftDevice: false,
       durationMs: restDur
@@ -203,7 +241,12 @@ btnAnalyze?.addEventListener('click', async () => {
     console.log('%c[2. Protected Token Map]', 'color: #2563eb; font-weight: bold;');
     console.table(Array.from(map.entries()).map(([token, val]) => ({ 'Placeholder Token': token, 'Protected Secret': val })));
     console.log('%c[3. Raw AI Response with Tokens]', 'color: #d97706; font-weight: bold;', '\n' + modelAnswer);
-    console.log('%c[4. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
+    console.log('%c[4. Placeholder Integrity Validation]', 'color: #8b5cf6; font-weight: bold;', {
+      valid: validation.ok,
+      unknownTokens: validation.unknown,
+      missingFromResponse: validation.missing
+    });
+    console.log('%c[5. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
     console.groupEnd();
 
     resultBox.textContent = restoredAnswer;
