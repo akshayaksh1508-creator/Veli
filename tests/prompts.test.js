@@ -12,6 +12,8 @@ describe('Priority 2: Unified Prompt Builder Verification', () => {
   it('builds local prompt with the four required sections', () => {
     const prompt = buildLocalAnalysisPrompt(sampleDoc);
 
+    expect(prompt).toContain('plain text only');
+    expect(prompt).toContain('If a role is not stated, write "not stated"');
     expect(prompt).toContain('1. Summary');
     expect(prompt).toContain('2. Key Risks and Concerns');
     expect(prompt).toContain('3. Deadlines and Dates');
@@ -25,6 +27,8 @@ describe('Priority 2: Unified Prompt Builder Verification', () => {
     const redactedText = 'Priya, you must repay the loan of [AMOUNT_1] for [ACCOUNT_1] by 15 Jan.';
     const prompt = buildCloudAnalysisPrompt(redactedText);
 
+    expect(prompt).toContain('plain text only');
+    expect(prompt).toContain('If a role is not stated, write "not stated"');
     expect(prompt).toContain('1. Summary');
     expect(prompt).toContain('2. Key Risks and Concerns');
     expect(prompt).toContain('3. Deadlines and Dates');

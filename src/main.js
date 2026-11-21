@@ -10,6 +10,7 @@ import { route } from './router.js';
 import { showReviewStep } from './review.js';
 import { initRemoteConfig } from './firebase.js';
 import { buildLocalAnalysisPrompt } from './prompts.js';
+import { renderSafeMarkdown } from './markdown.js';
 
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
@@ -179,11 +180,7 @@ function renderSideBySide() {
 
   if (userContainer) {
     if (inspector.whatYouSee) {
-      const escaped = inspector.whatYouSee
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      userContainer.innerHTML = escaped;
+      userContainer.innerHTML = renderSafeMarkdown(inspector.whatYouSee);
     } else {
       userContainer.innerHTML = '<p class="text-muted">Awaiting analysis to view restored results.</p>';
     }
@@ -460,10 +457,10 @@ btnAnalyze?.addEventListener('click', async () => {
           <div class="result-offline-notice">
             <strong>⚡ Offline Notice:</strong> ${decision.warning}
           </div>
-          <div>${nanoResult.text}</div>
+          <div>${renderSafeMarkdown(nanoResult.text)}</div>
         `;
       } else {
-        resultBox.textContent = nanoResult.text;
+        resultBox.innerHTML = renderSafeMarkdown(nanoResult.text);
       }
 
       if (completeBanner) completeBanner.style.display = 'flex';
@@ -507,7 +504,7 @@ btnAnalyze?.addEventListener('click', async () => {
       inspector.setCloudPayload(text);
       inspector.setWhatYouSee(cloudResult.text);
 
-      resultBox.textContent = cloudResult.text;
+      resultBox.innerHTML = renderSafeMarkdown(cloudResult.text);
       if (completeBanner) completeBanner.style.display = 'flex';
       return;
     }
@@ -651,7 +648,7 @@ btnAnalyze?.addEventListener('click', async () => {
       console.log('%c[4. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
       console.groupEnd();
 
-      resultBox.textContent = restoredAnswer;
+      resultBox.innerHTML = renderSafeMarkdown(restoredAnswer);
       if (completeBanner) completeBanner.style.display = 'flex';
     }
   } catch (err) {

@@ -8,7 +8,7 @@ export const SAMPLES = {
     id: 'loan-email',
     title: '1. Loan Note (Short, Sensitive)',
     description: 'Short financial email under 1500 chars. Ideal for Route A (On-Device).',
-    text: `Priya, you must repay the loan of ₹4,50,000 for account 5021-8834-2210 by 15 Jan.
+    text: `Priya, you must repay the loan of ₹4,50,000 for account 5021-8834-2210 to Meera Iyer by 15 Jan.
 Rahul Mehta at 98450 12345 will confirm. Email him at rahul.mehta@example.com.`
   },
 
@@ -58,7 +58,9 @@ Over the past decade, distributed systems have progressively transitioned from m
 
 Modern web applications increasingly leverage localized processing to deliver near-instant user experiences. Rather than sending raw sensor data, telemetry, or user interactions across global backbones, client devices and edge nodes perform initial filtering, aggregation, and inference locally. Only synthesized insights or structured summaries are subsequently forwarded upstream to centralized systems.
 
-This distributed architecture fundamentally alters how fault tolerance and state synchronization are engineered. Systems must gracefully accommodate intermittent connectivity, asynchronous state updates, and resource constraints inherent to edge devices. As machine learning hardware accelerators become standard on mobile chipsets, laptops, and browser runtimes, on-device artificial intelligence represents the next natural milestone in the evolution of edge infrastructure.`
+This distributed architecture fundamentally alters how fault tolerance and state synchronization are engineered. Systems must gracefully accommodate intermittent connectivity, asynchronous state updates, and resource constraints inherent to edge devices. As machine learning hardware accelerators become standard on mobile chipsets, laptops, and browser runtimes, on-device artificial intelligence represents the next natural milestone in the evolution of edge infrastructure.
+
+Furthermore, distributed edge topologies redefine caching hierarchies and computational boundaries. When application components collaborate across varying geographic zones, operational consistency demands robust synchronization algorithms capable of resolving concurrent updates without continuous central arbitration. By decoupling time-critical operations from upstream network availability, edge systems enhance overall reliability while dramatically reducing unnecessary backbone telemetry. Emerging runtime sandboxes and secure execution environments further reinforce this paradigm, providing developers with predictable environments that seamlessly balance local responsiveness against centralized cloud orchestration. Decentralized consensus mechanisms and eventual consistency models enable autonomous edge clusters to maintain uninterrupted service delivery even during sustained network partitions.`
   },
 
   SAMPLE_4: {

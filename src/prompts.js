@@ -44,7 +44,7 @@ ${chunk}
  * @returns {string}
  */
 export function buildAnalysisPrompt({ text, isCloud = true, isRetry = false }) {
-  let instructions = `You are a careful document analyst.`;
+  let instructions = `You are a careful document analyst. Output plain text only without markdown formatting (no asterisks, hash headers, or bullet symbols).`;
 
   if (isCloud) {
     instructions += `
@@ -58,12 +58,12 @@ Copy placeholders EXACTLY as written, including the square brackets.`;
   }
 
   const summaryConstraint = isCloud
-    ? 'Summary (3 to 5 sentences summarizing purpose, obligations, and payment structure. Say who owes whom. Do not list contact details or repeat emails/phone numbers.)'
-    : 'Summary (1 to 2 concise sentences summarizing purpose and obligations. Say who owes whom. Do not list contact details.)';
+    ? 'Summary (3 to 5 sentences summarizing purpose, obligations, and payment structure. Say who owes whom. If a role is not stated, write "not stated". Do not list contact details or repeat emails/phone numbers.)'
+    : 'Summary (1 to 2 concise sentences summarizing purpose and obligations. Say who owes whom. If a role is not stated, write "not stated". Do not list contact details.)';
 
   return `${instructions}
 
-Analyze the document and return plain text using these exact four sections:
+Analyze the document and return plain text only using these exact four sections:
 1. ${summaryConstraint}
 2. Key Risks and Concerns
 3. Deadlines and Dates

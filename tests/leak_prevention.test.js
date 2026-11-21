@@ -10,6 +10,7 @@ describe('Leak Prevention & Sensitive String Assertions', () => {
     'Priya',
     '₹4,50,000',
     '5021-8834-2210',
+    'Meera Iyer',
     'Rahul Mehta',
     '98450 12345',
     'rahul.mehta@example.com'
@@ -58,6 +59,7 @@ describe('Leak Prevention & Sensitive String Assertions', () => {
       text: JSON.stringify({
         entities: [
           { text: 'Priya', type: 'PERSON' },
+          { text: 'Meera Iyer', type: 'PERSON' },
           { text: 'Rahul Mehta', type: 'PERSON' }
         ]
       })
