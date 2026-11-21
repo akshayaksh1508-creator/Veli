@@ -197,7 +197,11 @@ export async function runCloud(prompt) {
   if (prompt.toLowerCase().includes('hello')) {
     responseText = 'Hello! I am Cloud Gemini analyzing your document securely.';
   } else {
-    const placeholderMatches = prompt.match(/\[[A-Za-z0-9_]+\]/g) || [];
+    // Extract placeholders strictly from the document payload section
+    const docSection = prompt.includes('TEXT:\n"""')
+      ? prompt.split('TEXT:\n"""')[1].split('"""')[0]
+      : prompt;
+    const placeholderMatches = docSection.match(/\[[A-Za-z0-9_]+\]/g) || [];
     const uniqueTokens = Array.from(new Set(placeholderMatches));
 
     if (uniqueTokens.length > 0) {
