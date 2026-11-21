@@ -673,12 +673,12 @@ btnAnalyze?.addEventListener('click', async () => {
   }
 });
 
-// Initialize on page load (D3-T2: First-Run Experience)
+// Initialize on page load (starts with empty input per user requirement)
 initStatus();
-if (docInput && SAMPLES.SAMPLE_2) {
-  docInput.value = SAMPLES.SAMPLE_2.text;
-  if (calloutText) {
-    calloutText.textContent = 'Route C (Hybrid): Full agreement with sensitive data. Redacted on-device, human-reviewed, then analyzed by Cloud AI.';
-  }
+if (docInput) {
+  docInput.value = '';
+}
+if (calloutText) {
+  calloutText.textContent = 'Paste any document containing sensitive personal, financial, or contract data to analyze securely.';
 }
 updateCharCount();
