@@ -90,6 +90,11 @@ export async function getAppCheckToken() {
   }
 }
 
+// Start App Check as soon as this module loads, BEFORE ai.js creates the AI service and
+// before any request is made. (Previously initAppCheck() was defined but never called,
+// so no App Check token was ever attached.)
+initAppCheck();
+
 let remoteConfigInstance = null;
 
 /**

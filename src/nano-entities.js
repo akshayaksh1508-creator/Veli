@@ -269,7 +269,7 @@ export const GENERIC_STOPWORDS = new Set([
 export function filterNanoEntities(nanoMatches, regexMatches = []) {
   if (!Array.isArray(nanoMatches)) return [];
 
-  console.log('[NanoNER] Raw detected entities:', nanoMatches);
+  if (CONFIG.DEBUG_LOGS) console.log('[NanoNER] Raw detected entities (count):', nanoMatches.length);
 
   const filtered = nanoMatches.filter(nano => {
     // 1. Keep strictly PERSON, ORG, and ADDRESS
@@ -300,6 +300,6 @@ export function filterNanoEntities(nanoMatches, regexMatches = []) {
     return true;
   });
 
-  console.log('[NanoNER] Filtered entities (PERSON, ORG, ADDRESS):', filtered);
+  if (CONFIG.DEBUG_LOGS) console.log('[NanoNER] Filtered entities (count):', filtered.length);
   return filtered;
 }

@@ -449,7 +449,9 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: nanoMs,
         source: nanoResult.source,
         note: nanoResult.sdkFallbackReason
-          ? `Firebase SDK on-device path failed, so Chrome's LanguageModel API answered instead: ${nanoResult.sdkFallbackReason}`
+          ? (/disabled/i.test(nanoResult.sdkFallbackReason)
+              ? `On-device inference runs on Chrome's built-in LanguageModel API (Firebase SDK on-device path is not enabled).`
+              : `Firebase SDK on-device path failed, so Chrome's LanguageModel API answered instead: ${nanoResult.sdkFallbackReason}`)
           : undefined
       });
 
@@ -654,14 +656,15 @@ btnAnalyze?.addEventListener('click', async () => {
       inspector.setCloudPayload(reviewed.redactedText);
       inspector.setWhatYouSee(restoredAnswer);
 
-      // DevTools Inspection Logging
-      console.group('🛡️ [Veil Route C: Secure Cloud Analysis]');
-      console.log('%c[1. User-Approved Redacted Payload]', 'color: #e11d48; font-weight: bold;', '\n' + reviewed.redactedText);
-      console.log('%c[2. Protected Token Map]', 'color: #2563eb; font-weight: bold;');
-      console.table(Array.from(reviewed.map.entries()).map(([token, val]) => ({ 'Placeholder': token, 'Secret': val })));
-      console.log('%c[3. Cloud AI Response with Placeholders]', 'color: #d97706; font-weight: bold;', '\n' + cloudResult.text);
-      console.log('%c[4. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
-      console.groupEnd();
+      // Optional DevTools inspection. Only placeholder-level text is ever printed:
+      // never the token map (real values) and never the restored output.
+      if (CONFIG.DEBUG_LOGS) {
+        console.group('🛡️ [Veil Route C: Secure Cloud Analysis]');
+        console.log('[1. Redacted payload sent to the cloud]\n' + reviewed.redactedText);
+        console.log('[2. Placeholders protected]', reviewed.map.size);
+        console.log('[3. Cloud response (still placeholders)]\n' + cloudResult.text);
+        console.groupEnd();
+      }
 
       resultBox.innerHTML = renderSafeMarkdown(restoredAnswer);
       if (completeBanner) completeBanner.style.display = 'flex';

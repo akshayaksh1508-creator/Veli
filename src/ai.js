@@ -197,7 +197,7 @@ async function executeIsolatedChromeLanguageModel(prompt, start) {
       }
 
       const ms = Math.round(performance.now() - start);
-      console.log(`[AI:OnDevice] Response received in ${ms}ms (${isCloned ? 'cloned session' : 'fresh session'}):\n`, response);
+      if (CONFIG.DEBUG_LOGS) console.log(`[AI:OnDevice] Response received in ${ms}ms (${isCloned ? 'cloned session' : 'fresh session'}), length:`, String(response).length);
       if (!response || typeof response !== 'string' || !response.trim()) {
         throw new Error('EmptyResponseError: On-device model returned an empty response.');
       }
@@ -245,7 +245,7 @@ async function executeIsolatedChromeLanguageModel(prompt, start) {
  */
 export async function runOnDevice(prompt) {
   const start = performance.now();
-  console.log('[AI:OnDevice] Executing on-device inference via localModel (Firebase AI Logic):', prompt);
+  if (CONFIG.DEBUG_LOGS) console.log('[AI:OnDevice] Running on-device prompt, length:', prompt.length);
 
   let sdkFailure = null;
 
