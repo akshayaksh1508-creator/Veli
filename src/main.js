@@ -273,11 +273,19 @@ btnAnalyze?.addEventListener('click', async () => {
 
   isAnalyzing = true;
   btnAnalyze.disabled = true;
-  btnAnalyze.querySelector('span').textContent = 'Analyzing...';
+  btnAnalyze.querySelector('span').textContent = 'Evaluating...';
   if (completeBanner) completeBanner.style.display = 'none';
   inspector.reset();
   renderInspector();
-  resultBox.textContent = 'Evaluating routing and document privacy...';
+  resultBox.innerHTML = `
+    <div class="loading-indicator">
+      <div class="spinner"></div>
+      <div>
+        <strong>Evaluating Privacy & Routing...</strong>
+        <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Checking on-device AI capabilities and pattern matching...</div>
+      </div>
+    </div>
+  `;
 
   try {
     const onDevice = await isOnDeviceAvailable();
@@ -354,6 +362,17 @@ btnAnalyze?.addEventListener('click', async () => {
       });
 
       // Scenario 7: Defensive Nano NER with warning note in Inspector
+      btnAnalyze.querySelector('span').textContent = 'Scanning on-device (Nano AI)...';
+      resultBox.innerHTML = `
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+          <div>
+            <strong>Scanning with On-Device AI (Gemini Nano)</strong>
+            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Running local Named Entity Recognition on your hardware...</div>
+          </div>
+        </div>
+      `;
+
       let nanoMatches = [];
       let nanoWarning = null;
       const tNer0 = performance.now();
@@ -390,6 +409,17 @@ btnAnalyze?.addEventListener('click', async () => {
         leftDevice: false,
         durationMs: mergeDur
       });
+
+      btnAnalyze.querySelector('span').textContent = 'Analyzing locally (Nano AI)...';
+      resultBox.innerHTML = `
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+          <div>
+            <strong>Analyzing Document on Gemini Nano</strong>
+            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Route A: Processing 100% on-device. Zero data leaving device.</div>
+          </div>
+        </div>
+      `;
 
       const tNano0 = performance.now();
       const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
@@ -437,6 +467,17 @@ btnAnalyze?.addEventListener('click', async () => {
 
     // ROUTE B: Public Non-Sensitive Document (Direct Cloud)
     if (decision.route === 'B') {
+      btnAnalyze.querySelector('span').textContent = 'Analyzing in Cloud AI...';
+      resultBox.innerHTML = `
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+          <div>
+            <strong>Analyzing with Cloud AI (Route B: Direct Cloud)</strong>
+            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Sending public document directly to Cloud Gemini...</div>
+          </div>
+        </div>
+      `;
+
       const tCloud0 = performance.now();
       const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
       const cloudResult = await cloudRunner(text, new Map());
@@ -475,6 +516,17 @@ btnAnalyze?.addEventListener('click', async () => {
 
       let nanoMatches = [];
       if (onDevice) {
+        btnAnalyze.querySelector('span').textContent = 'Scanning on-device (Nano AI)...';
+        resultBox.innerHTML = `
+          <div class="loading-indicator">
+            <div class="spinner"></div>
+            <div>
+              <strong>On-Device Entity Detection (Gemini Nano)</strong>
+              <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Scanning locally for names, organizations, and addresses...</div>
+            </div>
+          </div>
+        `;
+
         let nanoWarning = null;
         const tNer0 = performance.now();
         const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
@@ -518,7 +570,16 @@ btnAnalyze?.addEventListener('click', async () => {
         return;
       }
 
-      btnAnalyze.querySelector('span').textContent = 'Analyzing in Cloud...';
+      btnAnalyze.querySelector('span').textContent = 'Analyzing in Cloud AI...';
+      resultBox.innerHTML = `
+        <div class="loading-indicator">
+          <div class="spinner"></div>
+          <div>
+            <strong>Analyzing with Cloud AI (App Check Verified)</strong>
+            <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Transmitting redacted payload with zero raw secrets...</div>
+          </div>
+        </div>
+      `;
 
       inspector.addStep({
         id: 'step_redact_reviewed',

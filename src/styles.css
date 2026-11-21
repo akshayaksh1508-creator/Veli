@@ -1096,3 +1096,34 @@ textarea.doc-input:focus {
   line-height: 1;
 }
 
+/* Progress Spinner & Live Status Indicator */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  color: var(--primary-blue);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(11, 87, 208, 0.2);
+  border-top-color: var(--primary-blue);
+  border-radius: 50%;
+  animation: veil-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes veil-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+

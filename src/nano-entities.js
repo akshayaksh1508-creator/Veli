@@ -6,6 +6,7 @@
 
 import { runOnDevice } from './ai.js';
 import { buildEntityPrompt } from './prompts.js';
+import { CONFIG } from './config.js';
 
 /**
  * Normalizes entity type into standard set: PERSON, ORG, ADDRESS, LOCATION.
@@ -203,7 +204,7 @@ export async function detectEntities(text, options = {}) {
   }
 
   const {
-    chunkSize = 1500,
+    chunkSize = CONFIG.CHUNK_SIZE || 3500,
     modelRunner = runOnDevice,
     onWarning = null
   } = options;
