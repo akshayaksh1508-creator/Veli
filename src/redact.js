@@ -60,6 +60,7 @@ export function detectRegex(text) {
     { type: 'EMAIL', regex: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
     { type: 'PHONE', regex: /(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/g },
     { type: 'PHONE', regex: /\+\d{1,3}[\s-]?\d{3,4}[\s-]?\d{3,4}[\s-]?\d{3,4}/g },
+    { type: 'PHONE', regex: /\(\d{2,4}\)\s?\d{3,4}[\s-]?\d{4}/g },
     { type: 'AADHAAR', regex: /\b\d{4}\s\d{4}\s\d{4}\b/g },
     { type: 'PAN', regex: /\b[A-Z]{5}\d{4}[A-Z]\b/g },
     { type: 'IFSC', regex: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g },
