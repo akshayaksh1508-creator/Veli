@@ -1,6 +1,6 @@
 import { SAMPLES } from './samples.js';
 import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
-import { restore } from './restore.js';
+import { restore, validatePlaceholders } from './restore.js';
 import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
 import { detectEntities } from './nano-entities.js';
@@ -218,12 +218,18 @@ btnAnalyze?.addEventListener('click', async () => {
 
     // 5. Local Restoration Step
     const tRest0 = performance.now();
+    const validation = validatePlaceholders(modelAnswer, map);
     const restoredAnswer = restore(modelAnswer, map);
     const restDur = performance.now() - tRest0;
 
+    let restorationLabel = `Local Restoration (${map.size} placeholders restored to real values)`;
+    if (!validation.ok) {
+      restorationLabel += ` — [Notice: ${validation.unknown.length} unknown token(s)]`;
+    }
+
     inspector.addStep({
       id: 'step_restore',
-      label: `Local Restoration (${map.size} placeholders restored to real values)`,
+      label: restorationLabel,
       where: 'local-code',
       leftDevice: false,
       durationMs: restDur
@@ -235,7 +241,12 @@ btnAnalyze?.addEventListener('click', async () => {
     console.log('%c[2. Protected Token Map]', 'color: #2563eb; font-weight: bold;');
     console.table(Array.from(map.entries()).map(([token, val]) => ({ 'Placeholder Token': token, 'Protected Secret': val })));
     console.log('%c[3. Raw AI Response with Tokens]', 'color: #d97706; font-weight: bold;', '\n' + modelAnswer);
-    console.log('%c[4. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
+    console.log('%c[4. Placeholder Integrity Validation]', 'color: #8b5cf6; font-weight: bold;', {
+      valid: validation.ok,
+      unknownTokens: validation.unknown,
+      missingFromResponse: validation.missing
+    });
+    console.log('%c[5. Final Restored Output]', 'color: #16a34a; font-weight: bold;', '\n' + restoredAnswer);
     console.groupEnd();
 
     resultBox.textContent = restoredAnswer;
