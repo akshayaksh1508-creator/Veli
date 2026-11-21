@@ -8,6 +8,12 @@ export const CONFIG = {
   MAX_CHARS: 12000,   // hard cap for MVP; show rejection above this
   CHUNK_SIZE: 3500,   // chars per chunk for Nano entity detection (optimized single-pass for contracts)
   CLOUD_RETRY: 1,     // retries if placeholders come back mangled
-  CLOUD_MODEL_NAME: 'gemini-2.0-flash', // Google's recommended high-speed multimodal cloud model
-  LOCAL_MODEL_NAME: 'gemini-nano'       // Chrome built-in on-device foundation model
+  // Switched from gemini-2.0-flash to gemini-3.8-flash per Google's Vertex AI / AI Logic API deprecation response.
+  // Override without code changes via VITE_CLOUD_MODEL in .env.
+  CLOUD_MODEL_NAME: (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CLOUD_MODEL) || 'gemini-3.8-flash',
+  // Display label only. It is NOT passed to the SDK as a model id (on-device mode uses Chrome's built-in model).
+  LOCAL_MODEL_NAME: 'gemini-nano',
+  // If true, runOnDevice may fall back to Chrome's LanguageModel API when the Firebase SDK on-device
+  // path fails. The fallback is always labeled in the Inspector. Set false to require the SDK path.
+  ALLOW_CHROME_DIRECT_FALLBACK: true
 };

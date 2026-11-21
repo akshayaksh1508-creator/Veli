@@ -174,7 +174,11 @@ function renderSideBySide() {
     const isRouteC = inspector.route === 'C';
     if (isRouteC && inspector.cloudPayload && lastCloudAnalysisResult && lastCloudAnalysisResult.payloadHash) {
       computePayloadHash(inspector.cloudPayload).then(displayedHash => {
-        const isMatch = (displayedHash === lastCloudAnalysisResult.payloadHash);
+        // 1) the displayed text hashes to the redacted text that was prepared for the cloud, and
+        // 2) that exact text is contained in the prompt string that was passed to the SDK call.
+        const dispatched = lastCloudAnalysisResult.promptDispatched || '';
+        const isMatch = (displayedHash === lastCloudAnalysisResult.payloadHash)
+          && dispatched.includes(inspector.cloudPayload);
         verifiedFooter.style.display = isMatch ? 'flex' : 'none';
       }).catch(() => {
         verifiedFooter.style.display = 'none';
@@ -250,6 +254,14 @@ function renderInspector() {
         <span>${step.durationMs} ms</span>
       </div>
     `;
+    // Show step notes (for example: why the Firebase SDK path was skipped) as plain text
+    if (step.note) {
+      row.style.flexWrap = 'wrap';
+      const noteEl = document.createElement('div');
+      noteEl.textContent = `⚠ ${step.note}`;
+      noteEl.style.cssText = 'flex-basis:100%;font-size:0.75rem;color:#b45309;margin-top:4px;';
+      row.appendChild(noteEl);
+    }
     container.appendChild(row);
   });
 
@@ -435,7 +447,10 @@ btnAnalyze?.addEventListener('click', async () => {
         where: 'on-device',
         leftDevice: false,
         durationMs: nanoMs,
-        source: nanoResult.source
+        source: nanoResult.source,
+        note: nanoResult.sdkFallbackReason
+          ? `Firebase SDK on-device path failed, so Chrome's LanguageModel API answered instead: ${nanoResult.sdkFallbackReason}`
+          : undefined
       });
 
       inspector.setRoute('A');

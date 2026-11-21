@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runOnDevice, runCloud, localModel, cloudModel } from '../src/ai.js';
+import { CONFIG } from '../src/config.js';
 
 describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
   let localSpy;
@@ -44,7 +45,7 @@ describe('D1-T4: Route Control Verification (localModel vs cloudModel)', () => {
     expect(cloudSpy).toHaveBeenCalledWith('Say hello');
     expect(backend).toBe('cloud');
     expect(source).toBe('firebase-sdk');
-    expect(model).toBe('gemini-2.0-flash');
+    expect(model).toBe(CONFIG.CLOUD_MODEL_NAME);
     expect(text.toLowerCase()).toContain('hello');
     expect(ms).toBeGreaterThanOrEqual(0);
     expect(tokenCount).toBe(5);

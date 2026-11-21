@@ -7,23 +7,48 @@
  * Reference: Architecture.md section 5.6 & Hybrid Inference Guide
  */
 
-import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
+import * as FirebaseAI from 'firebase/ai';
 import { app, getAppCheckToken } from './firebase.js';
 import { CONFIG } from './config.js';
+
+const { getAI, getGenerativeModel, GoogleAIBackend, InferenceMode } = FirebaseAI;
+
+// VERIFY against the Firebase AI Logic hybrid inference guide:
+//  - the InferenceMode constant names (ONLY_ON_DEVICE / ONLY_IN_CLOUD)
+//  - where the cloud model id goes in hybrid mode (inCloudParams.model vs. top-level model)
+// If InferenceMode is missing from the installed SDK version we fall back to the string values
+// and record that in sdkStatus so the problem is visible instead of silent.
+const MODE_ON_DEVICE = InferenceMode?.ONLY_ON_DEVICE ?? 'only_on_device';
+const MODE_IN_CLOUD = InferenceMode?.ONLY_IN_CLOUD ?? 'only_in_cloud';
+
+export const sdkStatus = {
+  inferenceModeConstants: Boolean(InferenceMode),
+  initError: null
+};
 
 // 1. Initialize Firebase AI Logic service instance
 export const ai = getAI(app, { backend: new GoogleAIBackend() });
 
-// 2. Create localModel pinned to on-device only (hybrid inference guide)
-export const localModel = getGenerativeModel(ai, {
-  model: CONFIG.LOCAL_MODEL_NAME,
-  mode: 'only_on_device'
+function createModel(label, config) {
+  try {
+    return getGenerativeModel(ai, config);
+  } catch (err) {
+    sdkStatus.initError = `${label}: ${err.message}`;
+    console.error(`[AI] Failed to create ${label}:`, err);
+    return null;
+  }
+}
+
+// 2. localModel pinned to on-device only. Required model parameter is provided as 'gemini-nano'.
+export const localModel = createModel('localModel', {
+  model: CONFIG.LOCAL_MODEL_NAME || 'gemini-nano',
+  mode: MODE_ON_DEVICE
 });
 
-// 3. Create cloudModel pinned to cloud only (hybrid inference guide)
-export const cloudModel = getGenerativeModel(ai, {
-  model: CONFIG.CLOUD_MODEL_NAME,
-  mode: 'only_in_cloud'
+// 3. cloudModel pinned to cloud only. Top-level model property is the official SDK parameter.
+export const cloudModel = createModel('cloudModel', {
+  mode: MODE_IN_CLOUD,
+  model: CONFIG.CLOUD_MODEL_NAME
 });
 
 let activeNanoSession = null;
@@ -222,6 +247,8 @@ export async function runOnDevice(prompt) {
   const start = performance.now();
   console.log('[AI:OnDevice] Executing on-device inference via localModel (Firebase AI Logic):', prompt);
 
+  let sdkFailure = null;
+
   // 1. Route through Firebase AI Logic SDK localModel (pinned to on-device only)
   try {
     if (localModel && typeof localModel.generateContent === 'function') {
@@ -236,14 +263,24 @@ export async function runOnDevice(prompt) {
         }
       }
     }
+    if (!localModel) {
+      sdkFailure = sdkStatus.initError || 'localModel was not created';
+    } else {
+      sdkFailure = 'Firebase SDK on-device model returned no text';
+    }
   } catch (sdkErr) {
-    console.warn('[AI:OnDevice] SDK localModel dispatch note:', sdkErr.message);
+    sdkFailure = sdkErr?.message || String(sdkErr);
+    console.warn('[AI:OnDevice] Firebase SDK on-device path failed:', sdkFailure);
   }
 
-  // 2. Isolated Chrome LanguageModel runtime backing the on-device environment
+  // 2. Optional, clearly-labeled fallback to Chrome's LanguageModel API.
+  //    Never silent: the result carries source + sdkFallbackReason for the Inspector.
+  if (!CONFIG.ALLOW_CHROME_DIRECT_FALLBACK) {
+    throw new Error(`OnDeviceSdkFailed: Firebase AI Logic on-device path failed (${sdkFailure}) and Chrome-direct fallback is disabled.`);
+  }
   const directResult = await executeIsolatedChromeLanguageModel(prompt, start);
   if (directResult) {
-    return directResult;
+    return { ...directResult, sdkFallbackReason: sdkFailure };
   }
 
   // Rule 4: On failure, throw a real error (no fake fallbacks or canned responses)
@@ -277,6 +314,10 @@ export async function runCloud(prompt) {
     appCheckToken = tokenObj ? tokenObj.token : null;
   } catch (err) {
     console.warn('[AI:Cloud] App Check notice:', err.message);
+  }
+
+  if (!cloudModel) {
+    throw new Error(`CloudModelUnavailable: Firebase AI Logic cloudModel was not created (${sdkStatus.initError || 'unknown reason'}).`);
   }
 
   console.log('[AI:Cloud] Calling cloudModel.generateContent (Firebase AI Logic)...');
