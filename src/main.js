@@ -354,12 +354,18 @@ btnAnalyze?.addEventListener('click', async () => {
       });
 
       // Scenario 7: Defensive Nano NER with warning note in Inspector
+      let nanoMatches = [];
       let nanoWarning = null;
       const tNer0 = performance.now();
       const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
-      const nanoMatches = await nerRunner(text, {
-        onWarning: (w) => { nanoWarning = w; }
-      });
+      try {
+        nanoMatches = await nerRunner(text, {
+          onWarning: (w) => { nanoWarning = w; }
+        });
+      } catch (nerErr) {
+        nanoWarning = nerErr.message || 'On-device entity detection failed';
+        nanoMatches = [];
+      }
       const nerDur = performance.now() - tNer0;
 
       inspector.addStep({
@@ -472,9 +478,14 @@ btnAnalyze?.addEventListener('click', async () => {
         let nanoWarning = null;
         const tNer0 = performance.now();
         const nerRunner = (typeof window !== 'undefined' && window.detectEntities) ? window.detectEntities : detectEntities;
-        nanoMatches = await nerRunner(text, {
-          onWarning: (w) => { nanoWarning = w; }
-        });
+        try {
+          nanoMatches = await nerRunner(text, {
+            onWarning: (w) => { nanoWarning = w; }
+          });
+        } catch (nerErr) {
+          nanoWarning = nerErr.message || 'On-device entity detection failed';
+          nanoMatches = [];
+        }
         const nerDur = performance.now() - tNer0;
 
         inspector.addStep({
