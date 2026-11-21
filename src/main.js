@@ -105,8 +105,67 @@ document.querySelectorAll('.sample-btn').forEach(btn => {
   });
 });
 
+// Render Inspector steps and side-by-side viewer
+function renderSideBySide() {
+  const cloudContainer = document.getElementById('sidebyside-cloud');
+  const userContainer = document.getElementById('sidebyside-user');
+  const summaryLineText = document.getElementById('summary-line-text');
+
+  if (summaryLineText) {
+    summaryLineText.textContent = inspector.getSummaryLine();
+  }
+
+  if (cloudContainer) {
+    if (inspector.cloudPayload) {
+      // Escape HTML and highlight placeholders
+      const escaped = inspector.cloudPayload
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const highlighted = escaped.replace(/(\[[A-Za-z0-9_]+\])/g, '<span class="token-highlight">$1</span>');
+      cloudContainer.innerHTML = highlighted;
+    } else {
+      cloudContainer.innerHTML = '<div style="color:#64748b;padding:8px 0;"><strong>Zero Cloud Transmission:</strong> Document was analyzed 100% on-device. Nothing was sent to the cloud.</div>';
+    }
+  }
+
+  if (userContainer) {
+    if (inspector.whatYouSee) {
+      const escaped = inspector.whatYouSee
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      userContainer.innerHTML = escaped;
+    } else {
+      userContainer.innerHTML = '<p class="text-muted">Awaiting analysis to view restored results.</p>';
+    }
+  }
+}
+
+// Tab Switcher for Inspector Panel
+const tabBtnResult = document.getElementById('tab-btn-result');
+const tabBtnSideBySide = document.getElementById('tab-btn-sidebyside');
+const tabPaneResult = document.getElementById('tab-pane-result');
+const tabPaneSideBySide = document.getElementById('tab-pane-sidebyside');
+
+tabBtnResult?.addEventListener('click', () => {
+  tabBtnResult.classList.add('active');
+  tabBtnSideBySide.classList.remove('active');
+  tabPaneResult.classList.add('active');
+  tabPaneSideBySide.classList.remove('active');
+});
+
+tabBtnSideBySide?.addEventListener('click', () => {
+  tabBtnSideBySide.classList.add('active');
+  tabBtnResult.classList.remove('active');
+  tabPaneSideBySide.classList.add('active');
+  tabPaneResult.classList.remove('active');
+  renderSideBySide();
+});
+
 // Render Inspector steps matching reference design
 function renderInspector() {
+  renderSideBySide();
   if (!inspectorPanel) return;
 
   if (inspector.steps.length === 0) {
@@ -250,6 +309,10 @@ btnAnalyze?.addEventListener('click', async () => {
         durationMs: restDur
       });
 
+      inspector.setRoute('A');
+      inspector.setHiddenCount(map.size);
+      inspector.setWhatYouSee(restoredAnswer);
+
       resultBox.textContent = restoredAnswer;
       return;
     }
@@ -267,6 +330,11 @@ btnAnalyze?.addEventListener('click', async () => {
         leftDevice: true,
         durationMs: cloudDur
       });
+
+      inspector.setRoute('B');
+      inspector.setHiddenCount(0);
+      inspector.setCloudPayload(text);
+      inspector.setWhatYouSee(cloudResult.text);
 
       resultBox.textContent = cloudResult.text;
       return;
@@ -351,6 +419,11 @@ btnAnalyze?.addEventListener('click', async () => {
         leftDevice: false,
         durationMs: restDur
       });
+
+      inspector.setRoute('C');
+      inspector.setHiddenCount(reviewed.matches.length);
+      inspector.setCloudPayload(reviewed.redactedText);
+      inspector.setWhatYouSee(restoredAnswer);
 
       // DevTools Inspection Logging
       console.group('🛡️ [Veil Route C: Secure Cloud Analysis]');
