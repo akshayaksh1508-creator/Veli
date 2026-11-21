@@ -165,19 +165,45 @@ btnAnalyze?.addEventListener('click', async () => {
   try {
     // 1. Regex Redaction Step
     const tRegex0 = performance.now();
-    const matches = detectRegex(text);
-    const { redactedText, map } = buildRedaction(text, matches);
+    const regexMatches = detectRegex(text);
     const regexDur = performance.now() - tRegex0;
 
     inspector.addStep({
-      id: 'step_redact',
-      label: `Pattern Scan & Redaction (${matches.length} matches, ${map.size} tokens)`,
+      id: 'step_regex',
+      label: `Pattern Scan (${regexMatches.length} regex matches)`,
       where: 'local-code',
       leftDevice: false,
       durationMs: regexDur
     });
 
-    // 2. On-Device Model Step
+    // 2. On-Device Entity Detection Step (Gemini Nano NER)
+    const tNer0 = performance.now();
+    const nanoMatches = await detectEntities(text);
+    const nerDur = performance.now() - tNer0;
+
+    inspector.addStep({
+      id: 'step_nano_ner',
+      label: `On-Device Entity Detection (${nanoMatches.length} names, orgs, addresses)`,
+      where: 'on-device',
+      leftDevice: false,
+      durationMs: nerDur
+    });
+
+    // 3. Merge & Redaction Step
+    const tMerge0 = performance.now();
+    const mergedMatches = mergeMatches([regexMatches, nanoMatches]);
+    const { redactedText, map } = buildRedaction(text, mergedMatches);
+    const mergeDur = performance.now() - tMerge0;
+
+    inspector.addStep({
+      id: 'step_redact',
+      label: `Merge & Redaction (${mergedMatches.length} matches, ${map.size} tokens)`,
+      where: 'local-code',
+      leftDevice: false,
+      durationMs: mergeDur
+    });
+
+    // 4. On-Device Model Step
     const tNano0 = performance.now();
     const prompt = `Analyze this document. Summarize key points in 2-3 sentences:\n\n${redactedText}`;
     const { text: modelAnswer, ms: nanoMs } = await runOnDevice(prompt);
@@ -190,7 +216,7 @@ btnAnalyze?.addEventListener('click', async () => {
       durationMs: nanoMs
     });
 
-    // 3. Local Restoration Step
+    // 5. Local Restoration Step
     const tRest0 = performance.now();
     const restoredAnswer = restore(modelAnswer, map);
     const restDur = performance.now() - tRest0;

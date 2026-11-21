@@ -126,9 +126,16 @@ export function detectRegex(text) {
   return matches;
 }
 
+const REGEX_TYPES = new Set([
+  'CARD', 'ACCOUNT', 'PHONE', 'PAN', 'AADHAAR', 'SSN', 'IFSC', 'EMAIL', 'AMOUNT', 'URL'
+]);
+
 /**
- * Resolves overlapping and nested matches.
- * Keeps longer matches; on tie breaks by type priority.
+ * Resolves overlapping and nested matches from both Regex and On-Device Nano NER.
+ * Rules:
+ * 1. If a Nano entity overlaps a regex match, keep the regex type.
+ * 2. When two matches of the same class overlap, keep the longer one.
+ * 3. On identical length, break ties using TYPE_PRIORITY.
  *
  * @param {Array<Array<{start: number, end: number, text: string, type: string}>>} matchLists
  * @returns {Array<{start: number, end: number, text: string, type: string}>}
@@ -137,12 +144,19 @@ export function mergeMatches(matchLists) {
   const all = matchLists.flat();
   if (all.length === 0) return [];
 
-  // Sort ascending by start; if start equal, sort descending by length; if length equal, by priority
+  // Sort ascending by start;
+  // If start positions are equal, prioritize regex over nano, then longer over shorter
   all.sort((a, b) => {
     if (a.start !== b.start) return a.start - b.start;
+
+    const isRegexA = REGEX_TYPES.has(a.type);
+    const isRegexB = REGEX_TYPES.has(b.type);
+    if (isRegexA !== isRegexB) return isRegexA ? -1 : 1;
+
     const lenA = a.end - a.start;
     const lenB = b.end - b.start;
     if (lenA !== lenB) return lenB - lenA;
+
     return (TYPE_PRIORITY[b.type] || 0) - (TYPE_PRIORITY[a.type] || 0);
   });
 
@@ -158,6 +172,20 @@ export function mergeMatches(matchLists) {
 
     // Check for overlap
     if (match.start < prev.end) {
+      const isPrevRegex = REGEX_TYPES.has(prev.type);
+      const isCurrRegex = REGEX_TYPES.has(match.type);
+
+      // Rule: If a Nano entity overlaps a regex match, keep the regex type
+      if (isPrevRegex && !isCurrRegex) {
+        // Keep regex match, discard current nano match
+        continue;
+      } else if (!isPrevRegex && isCurrRegex) {
+        // Replace nano entity with regex match
+        merged[merged.length - 1] = match;
+        continue;
+      }
+
+      // Both are regex or both are nano
       const prevLen = prev.end - prev.start;
       const currLen = match.end - match.start;
       const prevPrio = TYPE_PRIORITY[prev.type] || 0;
