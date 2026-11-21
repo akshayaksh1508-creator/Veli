@@ -97,6 +97,8 @@ export async function analyzeWithCloud(redactedText, map, options = {}) {
       return {
         text: lastResult.text,
         ms: lastResult.ms,
+        model: lastResult.model || 'gemini-2.0-flash',
+        tokenCount: lastResult.tokenCount ?? null,
         backend: lastResult.backend,
         validation,
         retriesUsed: attempt,
@@ -120,6 +122,8 @@ export async function analyzeWithCloud(redactedText, map, options = {}) {
   return {
     text: lastResult.text,
     ms: lastResult.ms,
+    model: lastResult.model || 'gemini-2.0-flash',
+    tokenCount: lastResult.tokenCount ?? null,
     backend: lastResult.backend,
     validation,
     retriesUsed: attempt - 1,

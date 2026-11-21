@@ -132,4 +132,26 @@ describe('D2-T7: Routing Inspector Model & Verification', () => {
     // Verify summary line for Route A
     expect(inspector.getSummaryLine()).toBe('Pure on-device execution • Nothing was sent.');
   });
+
+  it('Issue 10: shows model name and token count on the CLOUD row as real execution evidence', () => {
+    const inspector = new Inspector();
+    inspector.setRoute('C');
+
+    inspector.addStep({
+      id: 'step_cloud_c',
+      label: 'Cloud AI Analysis',
+      where: 'cloud',
+      leftDevice: true,
+      durationMs: 420,
+      model: 'gemini-2.0-flash',
+      tokenCount: 382
+    });
+
+    const cloudStep = inspector.steps.find(s => s.where === 'cloud');
+    expect(cloudStep).toBeDefined();
+    expect(cloudStep.model).toBe('gemini-2.0-flash');
+    expect(cloudStep.tokenCount).toBe(382);
+    expect(cloudStep.label).toContain('gemini-2.0-flash');
+    expect(cloudStep.label).toContain('382 tokens');
+  });
 });

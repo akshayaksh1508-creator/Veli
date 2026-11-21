@@ -15,7 +15,6 @@ import { renderSafeMarkdown } from './markdown.js';
 // Expose for DevTools testing & inspection
 if (typeof window !== 'undefined') {
   window.detectEntities = detectEntities;
-  window.analyzeWithCloud = analyzeWithCloud;
   window.verifyZeroLeakage = verifyZeroLeakage;
   window.route = route;
   window.showReviewStep = showReviewStep;
@@ -481,9 +480,8 @@ btnAnalyze?.addEventListener('click', async () => {
       `;
 
       const tCloud0 = performance.now();
-      const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
       lastCloudPayloadSent = text;
-      const cloudResult = await cloudRunner(text, new Map());
+      const cloudResult = await analyzeWithCloud(text, new Map());
       const cloudDur = performance.now() - tCloud0;
 
       if (isBrokenReply(cloudResult.text)) {
@@ -496,7 +494,9 @@ btnAnalyze?.addEventListener('click', async () => {
         label: 'Cloud Document Analysis [Route B: Public Direct Cloud]',
         where: 'cloud',
         leftDevice: true,
-        durationMs: cloudDur
+        durationMs: cloudDur,
+        model: cloudResult.model || 'gemini-2.0-flash',
+        tokenCount: cloudResult.tokenCount
       });
 
       inspector.setRoute('B');
@@ -603,9 +603,8 @@ btnAnalyze?.addEventListener('click', async () => {
 
       // Step 5: Cloud Analysis with verified token payload (Scenario 6: failure handled in catch)
       const tCloud0 = performance.now();
-      const cloudRunner = (typeof window !== 'undefined' && window.analyzeWithCloud) ? window.analyzeWithCloud : analyzeWithCloud;
       lastCloudPayloadSent = reviewed.redactedText;
-      const cloudResult = await cloudRunner(reviewed.redactedText, reviewed.map);
+      const cloudResult = await analyzeWithCloud(reviewed.redactedText, reviewed.map);
       const cloudDur = performance.now() - tCloud0;
 
       if (isBrokenReply(cloudResult.text)) {
@@ -618,7 +617,9 @@ btnAnalyze?.addEventListener('click', async () => {
         label: `Cloud AI Analysis (${cloudResult.retriesUsed > 0 ? 'Retried, ' : ''}App Check Verified)`,
         where: 'cloud',
         leftDevice: true,
-        durationMs: cloudDur
+        durationMs: cloudDur,
+        model: cloudResult.model || 'gemini-2.0-flash',
+        tokenCount: cloudResult.tokenCount
       });
 
       const tRest0 = performance.now();

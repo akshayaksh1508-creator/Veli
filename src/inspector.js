@@ -59,21 +59,36 @@ export class Inspector {
    * @param {string} [step.payload] - Payload processed
    * @param {Array<object>} [step.highlights] - Highlighted placeholder tokens
    * @param {string} [step.note] - Optional detail or warning message
+   * @param {string} [step.model] - Model name (e.g. 'gemini-2.0-flash' or 'gemini-nano')
+   * @param {number} [step.tokenCount] - Token count from model usage metadata
    */
-  addStep({ id, label, where, leftDevice, durationMs, payload, highlights, note }) {
+  addStep({ id, label, where, leftDevice, durationMs, payload, highlights, note, model, tokenCount }) {
     const payloadStr = payload !== undefined && payload !== null ? String(payload) : null;
     const computedHighlights = highlights || (payloadStr ? this.extractHighlights(payloadStr) : []);
 
+    let formattedLabel = label;
+    // Issue 10: Show model name and token count on the CLOUD row as real execution evidence
+    if (where === 'cloud') {
+      const modelName = model || 'gemini-2.0-flash';
+      const tokenStr = (tokenCount !== null && tokenCount !== undefined) ? `${tokenCount} tokens` : null;
+      const evidence = [modelName, tokenStr].filter(Boolean).join(' • ');
+      if (evidence && !formattedLabel.includes(modelName)) {
+        formattedLabel = `${formattedLabel} (${evidence})`;
+      }
+    }
+
     const stepObj = {
       id: id || `s_${this.steps.length + 1}`,
-      label,
+      label: formattedLabel,
       where,
       leftDevice: Boolean(leftDevice),
       startedAt: Date.now(),
       durationMs: Math.round(durationMs || 0),
       payload: payloadStr,
       highlights: computedHighlights,
-      note: note || ''
+      note: note || '',
+      model: model || (where === 'cloud' ? 'gemini-2.0-flash' : null),
+      tokenCount: tokenCount !== undefined ? tokenCount : null
     };
 
     this.steps.push(stepObj);

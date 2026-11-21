@@ -263,19 +263,6 @@ export async function runCloud(prompt) {
     throw new Error('NetworkError: Cloud inference unavailable while offline. Check internet connection.');
   }
 
-  // Physical network check: in browser, probe real connectivity to ensure offline disconnects fail even with virtual adapters
-  if (typeof window !== 'undefined' && typeof fetch !== 'undefined') {
-    try {
-      await fetch('https://www.google.com/generate_204', {
-        mode: 'no-cors',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(2500)
-      });
-    } catch {
-      throw new Error('NetworkError: Cloud inference unavailable while offline. Check internet connection.');
-    }
-  }
-
   // Obtain App Check token for cloud authorization
   let appCheckHeader = null;
   try {
@@ -302,6 +289,7 @@ export async function runCloud(prompt) {
       text: text.trim(),
       ms,
       tokenCount,
+      model: 'gemini-2.0-flash',
       backend: 'cloud',
       appCheckVerified: Boolean(appCheckHeader)
     };
