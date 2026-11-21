@@ -3,6 +3,12 @@ import { detectRegex, buildRedaction } from './redact.js';
 import { restore } from './restore.js';
 import { runOnDevice, checkNanoCapabilities } from './ai.js';
 import { inspector } from './inspector.js';
+import { detectEntities } from './nano-entities.js';
+
+// Expose for DevTools testing & inspection
+if (typeof window !== 'undefined') {
+  window.detectEntities = detectEntities;
+}
 
 // DOM Elements
 const docInput = document.getElementById('doc-input');
