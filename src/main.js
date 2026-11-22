@@ -257,7 +257,7 @@ function renderInspector() {
     // Show step notes (for example: why the Firebase SDK path was skipped) as plain text
     if (step.note) {
       row.style.flexWrap = 'wrap';
-      const isWarning = /fail|error|warning|unparseable|reject/i.test(step.note);
+      const isWarning = /fail|error|warning|unparseable|reject/i.test(step.note) && !/built-in|LanguageModel/i.test(step.note);
       const noteEl = document.createElement('div');
       noteEl.textContent = `${isWarning ? '⚠' : 'ℹ'} ${step.note}`;
       noteEl.style.cssText = `flex-basis:100%;font-size:0.75rem;color:${isWarning ? '#b45309' : '#64748b'};margin-top:4px;`;
@@ -540,13 +540,13 @@ btnAnalyze?.addEventListener('click', async () => {
 
       let nanoMatches = [];
       if (onDevice) {
-        btnAnalyze.querySelector('span').textContent = 'Scanning on-device (Nano AI)...';
+        btnAnalyze.querySelector('span').textContent = 'Detecting names on-device…';
         resultBox.innerHTML = `
           <div class="loading-indicator">
             <div class="spinner"></div>
             <div>
-              <strong>On-Device Entity Detection (Gemini Nano)</strong>
-              <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Scanning locally for names, organizations, and addresses...</div>
+              <strong>Detecting names on-device…</strong>
+              <div style="font-size:0.75rem;color:#64748b;margin-top:2px;">Scanning locally with Gemini Nano for names, organizations, and addresses...</div>
             </div>
           </div>
         `;
@@ -677,9 +677,14 @@ btnAnalyze?.addEventListener('click', async () => {
   } catch (err) {
     // Scenario 6: Failure handling — Error displayed, NO partial result presented as complete
     console.error('[Veil Analysis Failure]', err);
+    const isQuota = /429|quota|resource-exhausted|rate-limit/i.test(err?.message || '');
+    const displayMsg = isQuota
+      ? 'Cloud analysis is temporarily unavailable. Please try again shortly.'
+      : (err?.message || 'Unknown analysis error');
+
     inspector.addStep({
       id: 'step_error',
-      label: `Analysis Failure: ${err.message}`,
+      label: `Analysis Failure: ${displayMsg}`,
       where: 'cloud',
       leftDevice: true,
       durationMs: 0
@@ -689,9 +694,9 @@ btnAnalyze?.addEventListener('click', async () => {
 
     resultBox.innerHTML = `
       <div class="result-error-card">
-        <div class="error-badge">Analysis Failed</div>
-        <h4>Unable to Complete Analysis</h4>
-        <div class="error-msg">${err.message}</div>
+        <div class="error-badge">${isQuota ? 'Service Busy' : 'Analysis Failed'}</div>
+        <h4>${isQuota ? 'Cloud Service Busy' : 'Unable to Complete Analysis'}</h4>
+        <div class="error-msg">${displayMsg}</div>
         <div class="error-assurance">
           🛡️ <strong>Zero Data Compromise:</strong> All secrets remained strictly protected on-device. No partial or unverified result is accepted.
         </div>

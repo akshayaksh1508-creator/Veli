@@ -58,8 +58,8 @@ Copy placeholders EXACTLY as written, including the square brackets.`;
   }
 
   const summaryConstraint = isCloud
-    ? 'Summary (3 to 5 sentences summarizing purpose, obligations, and payment structure. Say who owes whom. If a role is not stated, write "not stated". Do not list contact details or repeat emails/phone numbers.)'
-    : 'Summary (1 to 2 concise sentences summarizing purpose and obligations. Say who owes whom. If a role is not stated, write "not stated". Do not list contact details.)';
+    ? 'Summary (3 to 5 sentences summarizing purpose, obligations, and payment structure. Only mention payments or who owes whom if the text actually contains them. Say who owes whom. If a role is not stated, write "not stated". Do not list contact details or repeat emails/phone numbers.)'
+    : 'Summary (1 to 2 concise sentences summarizing purpose and obligations. Only mention payments or who owes whom if the text actually contains them. Say who owes whom. If a role is not stated, write "not stated". Do not list contact details.)';
 
   return `${instructions}
 
