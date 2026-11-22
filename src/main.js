@@ -124,6 +124,18 @@ function isBrokenReply(text) {
   return false;
 }
 
+// Helper to format consistent route description for the callout note
+function getRouteDescription(decision) {
+  if (!decision) return '';
+  switch (decision.route) {
+    case 'A': return `Route A (On-Device): ${decision.reason}`;
+    case 'B': return `Route B (Direct Cloud): ${decision.reason}`;
+    case 'C': return `Route C (Hybrid): ${decision.reason}`;
+    case 'REJECT': return `Rejected: ${decision.reason}`;
+    default: return decision.reason || '';
+  }
+}
+
 // Sample document buttons fill the textarea & toggle active state (D3-T2)
 document.querySelectorAll('.sample-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -336,10 +348,11 @@ btnAnalyze?.addEventListener('click', async () => {
     </div>
   `;
 
+  let decision = null;
   try {
     const onDevice = await isOnDeviceAvailable();
     const regexMatches = detectRegex(text);
-    const decision = route({
+    decision = route({
       length: text.length,
       sensitiveFound: regexMatches.length > 0,
       onDeviceAvailable: onDevice,
@@ -350,15 +363,7 @@ btnAnalyze?.addEventListener('click', async () => {
 
     // Priority 1: Fix 3 — Build banner from router's real route and reason
     if (calloutText) {
-      if (decision.route === 'A') {
-        calloutText.textContent = `Route A (On-Device): ${decision.reason}`;
-      } else if (decision.route === 'B') {
-        calloutText.textContent = `Route B (Direct Cloud): ${decision.reason}`;
-      } else if (decision.route === 'C') {
-        calloutText.textContent = `Route C (Hybrid): ${decision.reason}`;
-      } else if (decision.route === 'REJECT') {
-        calloutText.textContent = `Rejected: ${decision.reason}`;
-      }
+      calloutText.textContent = getRouteDescription(decision);
     }
 
     // Scenario 2 & 4: Hard Rejection (length cap or offline without Nano)
@@ -730,6 +735,9 @@ btnAnalyze?.addEventListener('click', async () => {
     isAnalyzing = false;
     updateCharCount();
     btnAnalyze.querySelector('span').innerHTML = 'Analyze Document &rarr;';
+    if (calloutText && decision) {
+      calloutText.textContent = getRouteDescription(decision);
+    }
     renderInspector();
   }
 });
