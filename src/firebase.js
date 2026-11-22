@@ -13,6 +13,18 @@ import { CONFIG } from './config.js';
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : {};
 
+// Set App Check debug token as early as possible before any App Check initialization
+const rawDebugToken = env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN;
+if (rawDebugToken) {
+  const tokenVal = rawDebugToken === 'true' ? true : rawDebugToken.trim().replace(/^['"]|['"]$/g, '');
+  if (typeof self !== 'undefined') {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = tokenVal;
+  }
+  if (typeof window !== 'undefined') {
+    window.FIREBASE_APPCHECK_DEBUG_TOKEN = tokenVal;
+  }
+}
+
 const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY,
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -41,7 +53,13 @@ export function initAppCheck() {
 
   const debugTokenConfig = env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN;
   if (debugTokenConfig) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugTokenConfig === 'true' ? true : debugTokenConfig;
+    const tokenVal = debugTokenConfig === 'true' ? true : debugTokenConfig.trim().replace(/^['"]|['"]$/g, '');
+    if (typeof self !== 'undefined') {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = tokenVal;
+    }
+    if (typeof window !== 'undefined') {
+      window.FIREBASE_APPCHECK_DEBUG_TOKEN = tokenVal;
+    }
   }
 
   const recaptchaKey = env.VITE_RECAPTCHA_SITE_KEY;
