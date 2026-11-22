@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   initializeAppCheck,
   ReCaptchaEnterpriseProvider,
+  CustomProvider,
   getToken
 } from 'firebase/app-check';
 import {
@@ -63,16 +64,20 @@ export function initAppCheck() {
   }
 
   const recaptchaKey = env.VITE_RECAPTCHA_SITE_KEY;
-  if (!recaptchaKey) {
-    // A debug token only replaces the reCAPTCHA exchange; the provider object is still needed (VERIFY in the App Check docs).
-    const msg = debugTokenConfig
-      ? '[AppCheck] VITE_FIREBASE_APPCHECK_DEBUG_TOKEN is set but VITE_RECAPTCHA_SITE_KEY is missing. Add the site key so the debug token can be used. App Check is NOT active.'
-      : '[AppCheck] VITE_RECAPTCHA_SITE_KEY not configured. App Check is NOT active.';
+  let provider = null;
+
+  if (recaptchaKey) {
+    provider = new ReCaptchaEnterpriseProvider(recaptchaKey);
+  } else if (debugTokenConfig) {
+    // In debug mode, Firebase exchanges FIREBASE_APPCHECK_DEBUG_TOKEN directly with Google
+    provider = new CustomProvider({
+      getToken: async () => ({ token: '', expireTimeMillis: 0 })
+    });
+  } else {
+    const msg = '[AppCheck] Neither VITE_RECAPTCHA_SITE_KEY nor VITE_FIREBASE_APPCHECK_DEBUG_TOKEN configured. App Check is NOT active.';
     if (env.PROD) console.error(msg); else console.warn(msg);
     return null;
   }
-
-  const provider = new ReCaptchaEnterpriseProvider(recaptchaKey);
 
   try {
     appCheck = initializeAppCheck(app, {

@@ -500,9 +500,13 @@ btnAnalyze?.addEventListener('click', async () => {
         throw new Error(`Cloud model returned broken response: "${cloudResult.text}"`);
       }
 
+      const appCheckLabelB = cloudResult.appCheckVerified
+        ? 'App Check: token obtained'
+        : 'App Check: unconfigured in dev';
+
       inspector.addStep({
         id: 'step_cloud',
-        label: 'Cloud Document Analysis [Route B: Public Direct Cloud]',
+        label: `Cloud Document Analysis [Route B: Public Direct Cloud] (${appCheckLabelB})`,
         where: 'cloud',
         leftDevice: true,
         durationMs: cloudDur,
