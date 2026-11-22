@@ -4,7 +4,7 @@
 
 Veil is a web app built for the #BuildHybridAI challenge (Chrome web track). It hides personal details on-device, sends only the redacted text to a cloud model through Firebase AI Logic, and restores the real values locally in your browser.
 
-> Demo video: `<YouTube link>` · Live app: `https://veil-e5e74.web.app` · Devpost: `<Devpost link>`
+> Demo video: `https://youtu.be/RuPN9bcSdFs` · Live app: `https://veil-e5e74.web.app` · Devpost: `<Devpost link>`
 
 ## The problem
 
