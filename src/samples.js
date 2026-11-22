@@ -8,7 +8,7 @@ export const SAMPLES = {
     id: 'loan-email',
     title: '1. Loan Note (Short, Sensitive)',
     description: 'Short financial email under 1500 chars. Ideal for Route A (On-Device).',
-    text: `Priya, you must repay the loan of ₹4,50,000 for account 5021-8834-2210 to Meera Iyer by 15 Jan.
+    text: `Priya, you must repay the loan of ₹4,50,000 for account 5021-8834-2210 to Meera Nair by 15 Jan.
 Rahul Mehta at 98450 12345 will confirm. Email him at rahul.mehta@example.com.`
   },
 

@@ -257,9 +257,10 @@ function renderInspector() {
     // Show step notes (for example: why the Firebase SDK path was skipped) as plain text
     if (step.note) {
       row.style.flexWrap = 'wrap';
+      const isWarning = /fail|error|warning|unparseable|reject/i.test(step.note);
       const noteEl = document.createElement('div');
-      noteEl.textContent = `⚠ ${step.note}`;
-      noteEl.style.cssText = 'flex-basis:100%;font-size:0.75rem;color:#b45309;margin-top:4px;';
+      noteEl.textContent = `${isWarning ? '⚠' : 'ℹ'} ${step.note}`;
+      noteEl.style.cssText = `flex-basis:100%;font-size:0.75rem;color:${isWarning ? '#b45309' : '#64748b'};margin-top:4px;`;
       row.appendChild(noteEl);
     }
     container.appendChild(row);

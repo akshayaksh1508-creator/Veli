@@ -14,7 +14,7 @@ const STRUCTURED = {
   ]
 };
 const NAMES = {
-  SAMPLE_1: ['Meera Iyer', 'Rahul Mehta', 'Priya'],
+  SAMPLE_1: ['Meera Nair', 'Rahul Mehta', 'Priya'],
   SAMPLE_2: ['Vikram Malhotra', 'Rohan Sharma', 'Anita Desai', 'Apex Global Technologies', 'HDFC Bank Ltd.', '44 Residency Road', 'Flat 302, Palm Grove Apts']
 };
 
