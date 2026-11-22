@@ -143,10 +143,31 @@ function renderSideBySide() {
   const cloudContainer = document.getElementById('sidebyside-cloud');
   const userContainer = document.getElementById('sidebyside-user');
   const summaryLineText = document.getElementById('summary-line-text');
+  const privacySummaryBanner = document.getElementById('privacy-summary-banner');
   const verifiedFooter = document.getElementById('sidebyside-verified-footer');
+  const resultCard = document.querySelector('.result-card');
+  const resultHeader = document.querySelector('.result-card-header');
+  const resultTitle = document.getElementById('result-card-title');
+  const isFailed = Boolean(inspector.failed);
 
   if (summaryLineText) {
     summaryLineText.textContent = inspector.getSummaryLine();
+  }
+
+  if (privacySummaryBanner) {
+    privacySummaryBanner.classList.toggle('failed', isFailed);
+  }
+
+  if (resultCard) {
+    resultCard.classList.toggle('failed', isFailed);
+  }
+
+  if (resultHeader) {
+    resultHeader.classList.toggle('failed', isFailed);
+  }
+
+  if (resultTitle) {
+    resultTitle.textContent = isFailed ? 'Analysis failed' : 'Analysis Result';
   }
 
   if (cloudContainer) {
@@ -426,6 +447,7 @@ btnAnalyze?.addEventListener('click', async () => {
         inspector.setHiddenCount(0);
         inspector.setCloudPayload('');
         inspector.setWhatYouSee('');
+        inspector.setFailed(true);
 
         renderErrorCard(resultBox, {
           badge: 'On-Device Incomplete',
@@ -433,6 +455,7 @@ btnAnalyze?.addEventListener('click', async () => {
           message: nanoResult.text || 'Gemini Nano returned an insufficient response.',
           assurance: '🛡️ Zero data left your device. Try rephrasing or running online.'
         });
+        renderInspector();
         return;
       }
 
@@ -535,10 +558,19 @@ btnAnalyze?.addEventListener('click', async () => {
         leftDevice: false,
         durationMs: regexDur
       });
+      renderInspector();
 
       let nanoMatches = [];
+      let validNanoMatches = [];
       if (onDevice) {
         btnAnalyze.querySelector('span').textContent = 'Detecting names on-device…';
+        if (calloutText) {
+          calloutText.textContent = 'Route C (Hybrid): Detecting names on-device…';
+        }
+        const summaryLine = document.getElementById('summary-line-text');
+        if (summaryLine) {
+          summaryLine.textContent = 'Detecting names on-device… • Scanning locally with Gemini Nano';
+        }
         resultBox.innerHTML = `
           <div class="loading-indicator">
             <div class="spinner"></div>
@@ -561,8 +593,8 @@ btnAnalyze?.addEventListener('click', async () => {
         }
         const nerDur = performance.now() - tNer0;
 
-        // Priority 2 Quality Fix: Filter to keep only PERSON, ORG, ADDRESS and drop regex overlaps
-        const validNanoMatches = filterNanoEntities(nanoMatches, regexMatches);
+        // Filter once and reuse results (avoids redundant execution and duplicate console logs)
+        validNanoMatches = filterNanoEntities(nanoMatches, regexMatches);
 
         inspector.addStep({
           id: 'step_nano_ner',
@@ -583,7 +615,6 @@ btnAnalyze?.addEventListener('click', async () => {
         });
       }
 
-      const validNanoMatches = filterNanoEntities(nanoMatches, regexMatches);
       const mergedMatches = mergeMatches([regexMatches, validNanoMatches]);
       renderInspector();
 

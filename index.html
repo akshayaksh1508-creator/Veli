@@ -153,7 +153,9 @@
           <div id="privacy-summary-banner" class="summary-line-badge">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2.2">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-              <polyline points="9 12 11 14 15 10"></polyline>
+              <polyline points="9 12 11 14 15 10" class="shield-check"></polyline>
+              <line x1="12" y1="8" x2="12" y2="12" class="shield-alert"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16" class="shield-alert"></line>
             </svg>
             <span id="summary-line-text">Privacy Engine Active • Redacts sensitive values before cloud transmission</span>
           </div>
@@ -173,11 +175,15 @@
             <!-- 1. Analysis Result Box -->
             <div class="result-card">
               <div class="result-card-header">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="#0b57d0">
+                <svg class="header-icon-success" width="17" height="17" viewBox="0 0 24 24" fill="#0b57d0">
                   <circle cx="12" cy="12" r="10" fill="#0b57d0"/>
                   <path d="m9 12 2 2 4-4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                 </svg>
-                <h3>Analysis Result</h3>
+                <svg class="header-icon-failed" width="17" height="17" viewBox="0 0 24 24" fill="#dc2626">
+                  <circle cx="12" cy="12" r="10" fill="#dc2626"/>
+                  <path d="m15 9-6 6m0-6 6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+                <h3 id="result-card-title">Analysis Result</h3>
               </div>
               <div id="result-box" class="code-box">
                 Awaiting document analysis. Paste text and click "Analyze Document &rarr;" to begin.

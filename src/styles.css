@@ -387,10 +387,35 @@ textarea.doc-input:focus {
   gap: 6px;
 }
 
+.result-card-header .header-icon-failed {
+  display: none;
+}
+
+.result-card-header .header-icon-success {
+  display: inline-block;
+}
+
+.result-card-header.failed .header-icon-success {
+  display: none;
+}
+
+.result-card-header.failed .header-icon-failed {
+  display: inline-block;
+}
+
 .result-card-header h3 {
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--primary-blue);
+  transition: color 0.15s ease;
+}
+
+.result-card-header.failed h3 {
+  color: #dc2626;
+}
+
+.result-card.failed {
+  border-left-color: #dc2626;
 }
 
 .code-box {
@@ -780,6 +805,33 @@ textarea.doc-input:focus {
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.summary-line-badge .shield-alert {
+  display: none;
+}
+
+.summary-line-badge .shield-check {
+  display: inline;
+}
+
+.summary-line-badge.failed {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.summary-line-badge.failed svg {
+  stroke: #dc2626 !important;
+}
+
+.summary-line-badge.failed .shield-alert {
+  display: inline;
+}
+
+.summary-line-badge.failed .shield-check {
+  display: none;
 }
 
 .inspector-tabs {

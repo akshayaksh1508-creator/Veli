@@ -24,12 +24,13 @@ export function normalizeEntityType(type) {
 
 /**
  * Splits input text into manageable chunks on paragraph or sentence boundaries.
+ * Default maxChunkSize is aligned with CONFIG.CHUNK_SIZE (3500) for single-pass analysis of contracts.
  *
  * @param {string} text
- * @param {number} [maxChunkSize=1500]
+ * @param {number} [maxChunkSize=CONFIG.CHUNK_SIZE || 3500]
  * @returns {string[]}
  */
-export function chunkText(text, maxChunkSize = 1500) {
+export function chunkText(text, maxChunkSize = (CONFIG && CONFIG.CHUNK_SIZE) || 3500) {
   if (!text || typeof text !== 'string') return [];
   if (text.length <= maxChunkSize) return [text];
 
