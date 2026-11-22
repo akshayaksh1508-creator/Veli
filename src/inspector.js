@@ -17,6 +17,7 @@ export class Inspector {
     this.whatYouSee = null;
     this.hiddenValuesCount = 0;
     this.route = null;
+    this.failed = false;
   }
 
   /**
@@ -131,6 +132,10 @@ export class Inspector {
    * Sets the count of hidden/protected values.
    * @param {number} count
    */
+  setFailed(value) {
+    this.failed = Boolean(value);
+  }
+
   setHiddenCount(count) {
     this.hiddenValuesCount = count;
   }
@@ -141,6 +146,9 @@ export class Inspector {
    * @returns {string}
    */
   getSummaryLine() {
+    if (this.failed) {
+      return 'Analysis failed • Your original text never left this device.';
+    }
     const hasCloudStep = this.steps.some(s => s.where === 'cloud' || s.leftDevice);
 
     if (!hasCloudStep || this.route === 'A') {

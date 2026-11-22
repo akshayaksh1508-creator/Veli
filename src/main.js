@@ -1,5 +1,7 @@
 import { SAMPLES } from './samples.js';
 import { CONFIG } from './config.js';
+import { friendlyError } from './errors.js';
+import { renderErrorCard } from './error-card.js';
 import { detectRegex, mergeMatches, buildRedaction } from './redact.js';
 import { restore, validatePlaceholders } from './restore.js';
 import { runOnDevice, runCloud, checkNanoCapabilities, isOnDeviceAvailable, prewarmNanoSession } from './ai.js';
@@ -425,16 +427,12 @@ btnAnalyze?.addEventListener('click', async () => {
         inspector.setCloudPayload('');
         inspector.setWhatYouSee('');
 
-        resultBox.innerHTML = `
-          <div class="result-error-card">
-            <div class="error-badge">On-Device Incomplete</div>
-            <h4>Unable to Complete On-Device Analysis</h4>
-            <div class="error-msg">${nanoResult.text || 'Gemini Nano returned an insufficient response.'}</div>
-            <div class="error-assurance">
-              🛡️ Zero data left your device. Try rephrasing or running online.
-            </div>
-          </div>
-        `;
+        renderErrorCard(resultBox, {
+          badge: 'On-Device Incomplete',
+          title: 'Unable to Complete On-Device Analysis',
+          message: nanoResult.text || 'Gemini Nano returned an insufficient response.',
+          assurance: '🛡️ Zero data left your device. Try rephrasing or running online.'
+        });
         return;
       }
 
@@ -677,31 +675,26 @@ btnAnalyze?.addEventListener('click', async () => {
   } catch (err) {
     // Scenario 6: Failure handling — Error displayed, NO partial result presented as complete
     console.error('[Veil Analysis Failure]', err);
-    const isQuota = /429|quota|resource-exhausted|rate-limit/i.test(err?.message || '');
-    const displayMsg = isQuota
-      ? 'Cloud analysis is temporarily unavailable. Please try again shortly.'
-      : (err?.message || 'Unknown analysis error');
-
+    const info = friendlyError(err);
     inspector.addStep({
       id: 'step_error',
-      label: `Analysis Failure: ${displayMsg}`,
-      where: 'cloud',
-      leftDevice: true,
-      durationMs: 0
+      label: `Analysis failed: ${info.title}`,
+      where: info.kind === 'unknown' ? 'local-code' : 'cloud',
+      leftDevice: false,
+      durationMs: 0,
+      note: `Technical detail: ${info.detail}`
     });
+    inspector.setFailed(true);
     inspector.setWhatYouSee('');
     if (completeBanner) completeBanner.style.display = 'none';
 
-    resultBox.innerHTML = `
-      <div class="result-error-card">
-        <div class="error-badge">${isQuota ? 'Service Busy' : 'Analysis Failed'}</div>
-        <h4>${isQuota ? 'Cloud Service Busy' : 'Unable to Complete Analysis'}</h4>
-        <div class="error-msg">${displayMsg}</div>
-        <div class="error-assurance">
-          🛡️ <strong>Zero Data Compromise:</strong> All secrets remained strictly protected on-device. No partial or unverified result is accepted.
-        </div>
-      </div>
-    `;
+    renderErrorCard(resultBox, {
+      badge: 'Analysis Failed',
+      title: info.title,
+      message: info.message,
+      detail: info.detail,
+      assurance: '🛡️ Your original text never left this device. No partial or unverified result is shown.'
+    });
   } finally {
     isAnalyzing = false;
     updateCharCount();
