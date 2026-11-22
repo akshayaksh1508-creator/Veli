@@ -6,6 +6,43 @@ Veil is a web app built for the #BuildHybridAI challenge (Chrome web track). It 
 
 > Demo video: `https://youtu.be/RuPN9bcSdFs` · Live app: `https://veil-e5e74.web.app` · Devpost: `<Devpost link>`
 
+## Quick start for judges
+
+**Fastest path (about 2 minutes), no login and no API key needed:**
+
+1. Open the live app in **desktop Chrome** (version 148 or newer): `https://veil-e5e74.web.app`
+2. Click **2. Contract (Route C: Hybrid)** and press **Analyze Document**. Veil detects names on-device (this can take 10 to 20 seconds), then shows the review screen.
+3. Check what is hidden, then press **Approve & Send to Cloud AI**. Open the **Side-by-Side Inspector** to compare *what the cloud saw* (placeholders only) with *what you see* (restored).
+4. Click **3. Tech Article (Route B: Cloud)** to see direct cloud analysis of public text. This works even without Gemini Nano.
+5. Click **1. Loan Note (Route A: On-Device)** and press Analyze. With Wi-Fi switched off, this still works on-device.
+
+To check the privacy claim yourself, open DevTools, go to the **Network** tab, and run step 2: no request to `firebasevertexai.googleapis.com` appears until you press Approve, and the one request after it contains only placeholders.
+
+If you cannot run it, the **demo video** shows the full flow, including the Network tab check, offline mode, and a cloud failure.
+
+### Browser and hardware requirements
+
+Veil's on-device features use Gemini Nano through Chrome's built-in Prompt API. Per Chrome's documentation at the time of writing (check <https://developer.chrome.com/docs/ai/prompt-api> for current details):
+
+- **Desktop Chrome** on Windows, macOS, Linux, or Chromebook Plus. Chrome for Android and iOS are not supported for these APIs.
+- About **22 GB of free disk space** on the volume that holds the Chrome profile.
+- A **GPU with more than 4 GB of VRAM**, or a CPU with **16 GB of RAM and 4 or more cores**.
+- The model **downloads on first use**, which can take a few minutes. The status chip at the top of the page shows `Nano: Downloading...`, then `Nano: Ready`.
+- Text in English (the Prompt API also accepts Spanish, Japanese, German, and French).
+
+### What works without Gemini Nano
+
+| Situation | What Veil does |
+|---|---|
+| Public, non-sensitive text, online | **Route B** works: sent directly to the cloud. |
+| Sensitive text, online, Nano unavailable | Routed as **Route C with pattern-based redaction only**. The router warns that names may not be hidden, the Inspector shows entity detection as skipped, and the review step lets you hide names by hand before anything is sent. |
+| Offline, Nano unavailable | Veil explains that it cannot process the text and nothing is sent. |
+| Route A (short text, or offline) | Needs Gemini Nano. |
+
+### Notes on free-tier limits
+
+Veil runs on Firebase's free Spark plan and a free-tier Gemini model. If many people test at once, the cloud service may return a rate-limit error. Veil then shows a message saying cloud analysis is temporarily unavailable and never shows a made-up result. Wait a minute and try again, or watch the demo video.
+
 ## The problem
 
 Cloud models handle long, messy documents far better than small on-device models. But the documents people most need help with (contracts, loan emails, medical notes, HR threads) are full of names, account numbers and addresses. Today you choose between private but weak, or powerful but risky.
@@ -50,7 +87,7 @@ If something fails, Veil shows a plain-language error and never produces a fabri
 - Only redacted text is sent to the cloud. This was checked in the browser Network tab: no AI request is made before you approve, and the one request after approval carries placeholders only.
 - The placeholder map is never logged, persisted or sent. Debug logging (`CONFIG.DEBUG_LOGS`, off by default) prints counts and placeholder-only text, never real values.
 - A leak test asserts that known sensitive strings from each sample are absent from the dispatched prompt.
-- Error text is rendered with `textContent` (via `renderErrorCard`), and model output is strictly HTML-escaped before markdown parsing (via `renderSafeMarkdown`) to prevent HTML injection.
+- Error text and model output are rendered with `textContent`, not `innerHTML`.
 
 ## Limitations (please read)
 
@@ -61,7 +98,7 @@ Veil reduces exposure. It does not guarantee that every sensitive value is caugh
 - On-device entity detection is slow on the sample contract: roughly 8 to 18 seconds.
 - Redacted amounts stop the cloud model from checking sums. The review step lets you keep amounts visible.
 - Cloud summaries are model output and can be wrong. Check important details.
-- The on-device path needs a recent desktop Chrome with Gemini Nano available. Without it, Route A and entity detection are unavailable and Veil says so.
+- The on-device path needs recent desktop Chrome with Gemini Nano available (see Browser and hardware requirements above). Without it, Route A and entity detection are unavailable, and Veil says so. Sensitive text then gets pattern-based redaction only.
 - Input is capped at 12,000 characters. Text only (no PDF or images).
 - Firebase AI monitoring may sample requests. Only redacted text is sent, but check your project's monitoring and trace settings.
 
