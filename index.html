@@ -175,15 +175,24 @@
             <!-- 1. Analysis Result Box -->
             <div class="result-card">
               <div class="result-card-header">
-                <svg class="header-icon-success" width="17" height="17" viewBox="0 0 24 24" fill="#0b57d0">
-                  <circle cx="12" cy="12" r="10" fill="#0b57d0"/>
-                  <path d="m9 12 2 2 4-4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                </svg>
-                <svg class="header-icon-failed" width="17" height="17" viewBox="0 0 24 24" fill="#dc2626">
-                  <circle cx="12" cy="12" r="10" fill="#dc2626"/>
-                  <path d="m15 9-6 6m0-6 6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
-                </svg>
-                <h3 id="result-card-title">Analysis Result</h3>
+                <div class="result-header-left">
+                  <svg class="header-icon-success" width="17" height="17" viewBox="0 0 24 24" fill="#0b57d0">
+                    <circle cx="12" cy="12" r="10" fill="#0b57d0"/>
+                    <path d="m9 12 2 2 4-4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                  </svg>
+                  <svg class="header-icon-failed" width="17" height="17" viewBox="0 0 24 24" fill="#dc2626">
+                    <circle cx="12" cy="12" r="10" fill="#dc2626"/>
+                    <path d="m15 9-6 6m0-6 6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+                  </svg>
+                  <h3 id="result-card-title">Analysis Result</h3>
+                </div>
+                <button id="btn-copy-result" class="btn-copy-result" title="Copy clean markdown summary to clipboard" style="display: none;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>Copy</span>
+                </button>
               </div>
               <div id="result-box" class="code-box">
                 Awaiting document analysis. Paste text and click "Analyze Document &rarr;" to begin.

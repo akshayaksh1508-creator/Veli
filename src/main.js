@@ -182,6 +182,12 @@ function renderSideBySide() {
     resultTitle.textContent = isFailed ? 'Analysis failed' : 'Analysis Result';
   }
 
+  const btnCopyResult = document.getElementById('btn-copy-result');
+  if (btnCopyResult) {
+    const hasResult = Boolean(inspector.whatYouSee && !isFailed);
+    btnCopyResult.style.display = hasResult ? 'inline-flex' : 'none';
+  }
+
   if (cloudContainer) {
     if (inspector.cloudPayload) {
       // Escape HTML and highlight placeholders
@@ -243,6 +249,37 @@ tabBtnSideBySide?.addEventListener('click', () => {
   tabPaneSideBySide.classList.add('active');
   tabPaneResult.classList.remove('active');
   renderSideBySide();
+});
+
+// Copy Analysis Result Markdown button
+const btnCopyResult = document.getElementById('btn-copy-result');
+btnCopyResult?.addEventListener('click', async () => {
+  const textToCopy = inspector.whatYouSee;
+  if (!textToCopy) return;
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(textToCopy);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    const span = btnCopyResult.querySelector('span');
+    if (span) span.textContent = 'Copied!';
+    btnCopyResult.classList.add('copied');
+    setTimeout(() => {
+      if (span) span.textContent = 'Copy';
+      btnCopyResult.classList.remove('copied');
+    }, 2000);
+  } catch (err) {
+    console.warn('[Veil] Clipboard copy failed:', err);
+  }
 });
 
 // Render Inspector steps matching reference design
