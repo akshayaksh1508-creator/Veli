@@ -1,58 +1,107 @@
 # Veil
 
-> Use powerful cloud AI on documents you'd never paste into a chatbot.
+**Use powerful cloud AI on documents you'd never paste into a chatbot.**
 
-Veil is a privacy-first hybrid document analysis application built for the **#BuildHybridAI** competition (Web / Chrome track). It pairs Chrome's on-device Gemini Nano with cloud models to analyze contracts, medical records, and financial reports without leaking personal or confidential data.
+Veil is a web app built for the #BuildHybridAI challenge (Chrome web track). It hides personal details on-device, sends only the redacted text to a cloud model through Firebase AI Logic, and restores the real values locally in your browser.
 
----
+> Demo video: `<YouTube link>` · Live app: `<Firebase Hosting URL>` · Devpost: `<Devpost link>`
 
-## How It Works
+## The problem
 
-1. **On-Device Redaction:** Fast regex rules and Gemini Nano detect sensitive entities (names, accounts, cards, amounts, addresses) and replace them with opaque tokens (`[PERSON_1]`, `[ACCOUNT_1]`).
-2. **Review Step:** Users inspect and adjust what gets hidden before anything leaves the machine.
-3. **Cloud Analysis:** Only redacted text is transmitted to cloud AI for analysis (summaries, risk factors, deadlines, action items).
-4. **On-Device Restoration:** Tokens in the cloud's response are mapped back to their original values locally in the browser. The mapping table is stored strictly in memory and is never logged or transmitted.
+Cloud models handle long, messy documents far better than small on-device models. But the documents people most need help with (contracts, loan emails, medical notes, HR threads) are full of names, account numbers and addresses. Today you choose between private but weak, or powerful but risky.
 
-### Routes
+## How it works
 
-- **Route A (On-Device Only):** Used when offline or for short documents. Processed entirely locally.
-- **Route B (Cloud Direct):** Used for long, non-sensitive public documents.
-- **Route C (Redact → Cloud → Restore):** Used for long documents containing sensitive information.
+1. **Redact (on-device).** Pattern rules and Gemini Nano in Chrome find emails, phones, account and card numbers, PAN/Aadhaar/IFSC, amounts (including spelled-out amounts), names, organizations and addresses, and replace them with placeholders such as `[PERSON_1]`. The placeholder map lives in browser memory only.
+2. **Review.** You see exactly what is hidden and can add or remove redactions. Nothing is sent until you press **Approve & Send to Cloud AI**.
+3. **Analyze (cloud).** Only the redacted text goes to the cloud model via Firebase AI Logic, which returns a summary, risks, deadlines and action items.
+4. **Restore (on-device).** Placeholders in the answer are swapped back to the real values locally.
 
----
+### Routing
 
-## Tech Stack
+| Input | Route | What happens |
+|---|---|---|
+| Short (at or below 1,500 characters), or offline | **A** | Runs fully on-device. Nothing is sent. |
+| Long, nothing sensitive detected | **B** | Sent directly to the cloud model. |
+| Long and sensitive | **C** | Redact on-device, review, cloud analysis, restore on-device. |
 
-- **Frontend:** Vanilla JavaScript (ES modules) + Vite
-- **AI Framework:** Firebase AI Logic SDK (Hybrid Inference)
-- **Security:** Firebase App Check
-- **Testing:** Vitest
-- **Hosting:** Firebase Hosting
+The 1,500 character threshold is synchronized through Firebase Remote Config, with a built-in default.
 
----
+### Routing Inspector
 
-## Setup & Development
+Every run shows which step ran where (local code, on-device, cloud), timings, the model name and token count for cloud calls, and a **Side-by-Side** view: *what the cloud saw* (placeholders only) next to *what you see* (restored). A verification line is shown only when the displayed redacted text is contained in the exact prompt that was dispatched to the cloud model.
 
-1. **Clone repository and install dependencies:**
-   ```bash
-   npm install
-   ```
+If something fails, Veil shows a plain-language error and never produces a fabricated result. A failed run also reports that your original text never left the device.
 
-2. **Configure Firebase:**
-   Copy `.env.example` to `.env` and fill in your Firebase configuration values.
+## Where Firebase AI Logic is used
 
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
+| What | Where |
+|---|---|
+| Firebase AI Logic initialization and model creation | `src/ai.js` (`getAI`, `getGenerativeModel` from `firebase/ai`) |
+| Cloud analysis call (`cloudModel.generateContent`) | `src/ai.js` → `runCloud` |
+| Prompt construction, placeholder validation, retry | `src/cloud-analysis.js`, `src/prompts.js` |
+| App Check (reCAPTCHA Enterprise, debug token for development) | `src/firebase.js` |
+| Remote Config (`SHORT_LIMIT`) | `src/firebase.js` |
 
-4. **Run tests:**
-   ```bash
-   npm test
-   ```
+**Honest note on on-device inference.** On-device inference currently runs on Chrome's built-in `LanguageModel` (Prompt API) with Gemini Nano. The Firebase SDK on-device path is implemented in `src/ai.js` but disabled by default (`CONFIG.ALLOW_SDK_ON_DEVICE = false`) because, in testing, it sent requests to the cloud endpoint instead of staying local. It will only be enabled after the browser Network tab shows zero requests for Route A and for entity detection. Cloud inference always goes through Firebase AI Logic.
 
----
+## Privacy design
+
+- Only redacted text is sent to the cloud. This was checked in the browser Network tab: no AI request is made before you approve, and the one request after approval carries placeholders only.
+- The placeholder map is never logged, persisted or sent. Debug logging (`CONFIG.DEBUG_LOGS`, off by default) prints counts and placeholder-only text, never real values.
+- A leak test asserts that known sensitive strings from each sample are absent from the dispatched prompt.
+- Error text is rendered with `textContent` (via `renderErrorCard`), and model output is strictly HTML-escaped before markdown parsing (via `renderSafeMarkdown`) to prevent HTML injection.
+
+## Limitations (please read)
+
+Veil reduces exposure. It does not guarantee that every sensitive value is caught, and it is not a compliance tool.
+
+- Names, organizations and addresses depend on Gemini Nano. It can miss unusual names and mislabel entity types. Regex rules cover structured data (emails, phones, IDs, accounts, amounts), and the review step exists for what slips through.
+- Redaction counts vary between runs (23 to 25 values on the sample contract, 20 to 22 unique tokens).
+- On-device entity detection is slow on the sample contract: roughly 8 to 18 seconds.
+- Redacted amounts stop the cloud model from checking sums. The review step lets you keep amounts visible.
+- Cloud summaries are model output and can be wrong. Check important details.
+- The on-device path needs a recent desktop Chrome with Gemini Nano available. Without it, Route A and entity detection are unavailable and Veil says so.
+- Input is capped at 12,000 characters. Text only (no PDF or images).
+- Firebase AI monitoring may sample requests. Only redacted text is sent, but check your project's monitoring and trace settings.
+
+Measured on the sample contract (about 1,900 characters): cloud analysis 2.0 to 3.3 s and about 700 to 1,000 tokens; 17 regex matches plus 7 to 9 Nano entities.
+
+## Run it locally
+
+Requirements: Node 18+, desktop Chrome with Gemini Nano available (for the on-device parts), a Firebase project with Firebase AI Logic enabled.
+
+```bash
+npm install
+cp .env.example .env      # then fill in your values
+npm run dev
+npm test
+```
+
+### App Check (required by Firebase AI Logic)
+
+1. In the Firebase console, open **App Check**, register your web app with **reCAPTCHA Enterprise**, and put the site key in `VITE_RECAPTCHA_SITE_KEY`.
+2. For local development, register a debug token under **Manage debug tokens** and set `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` to the same value.
+3. Reload. The console should show `[AppCheck] Initialized successfully`, and the cloud step in the Inspector should read "App Check: token obtained".
+4. Enable enforcement only after your hosted site shows "token obtained" in a fresh browser profile.
+
+### Deploy
+
+```bash
+npm run build             # VITE_ variables are baked in here, so set them first
+firebase deploy --only hosting
+```
+
+Add your Hosting domain to the reCAPTCHA key's allowed domains. Judges can also run locally with a debug token as above.
+
+### Samples
+
+Three fictional samples (loan note, contractor agreement, public article) demonstrate Routes A, C and B. All data in this repository is fake.
+
+## Tech
+
+Vite, plain JavaScript, Firebase (App, App Check, AI Logic, Remote Config, Hosting), Gemini Nano via Chrome's Prompt API, Vitest.
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+Apache License 2.0. See `LICENSE`.

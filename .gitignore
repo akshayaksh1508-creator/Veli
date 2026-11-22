@@ -6,8 +6,13 @@ dist/
 
 # Local env files
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
+
+# Firebase
+.firebase/
 
 # Editor / OS files
 .DS_Store
