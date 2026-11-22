@@ -101,11 +101,13 @@ export function initAppCheck() {
  */
 export async function getAppCheckToken() {
   if (!appCheck) {
+    console.log('[AppCheck] getAppCheckToken: appCheck instance is not initialized');
     return null;
   }
 
   try {
     const res = await getToken(appCheck, /* forceRefresh */ false);
+    console.log('[AppCheck] getAppCheckToken token obtained:', Boolean(res && res.token));
     return res && res.token ? res : null;
   } catch (err) {
     console.warn('[AppCheck] Token retrieval notice:', err.message);
